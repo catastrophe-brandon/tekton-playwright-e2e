@@ -1,0 +1,262 @@
+---
+# ConfigMap for Caddy configuration - serves chrome UI static assets
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chrome-dev-caddyfile
+data:
+  Caddyfile: |
+    {
+      debug
+    }
+
+    :9912 {
+        root * /opt/app-root/src/build/stable
+
+        # Handle /apps/chrome* requests - strip prefix and serve
+        @app_match {
+            path /apps/chrome*
+        }
+        handle @app_match {
+            uri strip_prefix /apps/chrome
+            file_server {
+                browse
+            }
+        }
+
+        # Handle all other requests - serve files normally
+        handle {
+            file_server
+        }
+
+        header {
+            Cache-Control "no-cache, no-store, must-revalidate"
+            Pragma "no-cache"
+            Expires "0"
+        }
+        header {
+            Access-Control-Allow-Origin "*"
+            Access-Control-Allow-Methods "GET, POST, OPTIONS"
+            Access-Control-Allow-Headers "Content-Type"
+        }
+    }
+---
+# Shared E2E Task definition
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: e2e-task
+spec:
+  params:
+    - description: The Trusted Artifact URI containing the application to test
+      name: SOURCE_ARTIFACT
+      type: string
+    - description: The script to execute the e2e tests
+      name: e2e-tests-script
+      type: string
+    - description: HTTP proxy configuration
+      name: HTTP_PROXY
+      type: string
+    - description: Test user credentials
+      name: E2E_USER
+      type: string
+    - description: Test user password
+      name: E2E_PASSWORD
+      type: string
+    - description: Proxy routes JSON configuration
+      name: PROXY_ROUTES_JSON
+      type: string
+      default: |
+        {
+          "/index.html": {
+            "url": "http://localhost:9912",
+            "is_chrome": true
+          },
+          "/apps/chrome*": {
+            "url": "http://localhost:9912",
+            "is_chrome": true
+          }
+        }
+    - description: Application port (default 8000)
+      name: APP_PORT
+      type: string
+      default: "8000"
+    - description: Playwright image to use for testing
+      name: PLAYWRIGHT_IMAGE
+      type: string
+      default: "quay.io/btweed/playwright_e2e:latest"
+    - description: Chrome dev image
+      name: CHROME_DEV_IMAGE
+      type: string
+      default: "quay.io/redhat-services-prod/hcc-platex-services-tenant/insights-chrome-dev:latest"
+    - description: Frontend proxy image
+      name: PROXY_IMAGE
+      type: string
+      default: "quay.io/redhat-user-workloads/hcc-platex-services-tenant/frontend-development-proxy:latest"
+  sidecars:
+    - image: $(params.PROXY_IMAGE)
+      name: frontend-dev-proxy
+      env:
+        - name: HTTP_PROXY
+          value: $(params.HTTP_PROXY)
+        - name: HTTPS_PROXY
+          value: $(params.HTTP_PROXY)
+      securityContext:
+        privileged: false
+      volumeMounts:
+        - name: proxy-config
+          mountPath: /config
+    - image: $(params.CHROME_DEV_IMAGE)
+      name: insights-chrome-dev
+      command: ["caddy"]
+      args: ["run", "--config", "/Caddyfile"]
+      securityContext:
+        privileged: false
+      volumeMounts:
+        - name: workdir
+          mountPath: /var/workdir
+        - name: chrome-dev-caddyfile
+          mountPath: /Caddyfile
+          subPath: Caddyfile
+    - name: run-application
+      image: $(params.SOURCE_ARTIFACT)
+      securityContext:
+        privileged: false
+      volumeMounts:
+        - name: workdir
+          mountPath: /var/workdir
+  volumes:
+    - name: workdir
+      emptyDir: {}
+    - name: proxy-config
+      emptyDir: {}
+    - name: chrome-dev-caddyfile
+      configMap:
+        name: chrome-dev-caddyfile
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+        readOnly: false
+  steps:
+    - name: setup-proxy-routes
+      image: busybox:latest
+      script: |
+        #!/bin/sh
+        set -e
+        echo "Writing proxy routes configuration..."
+        cat > /config/routes.json << 'EOF'
+        $(params.PROXY_ROUTES_JSON)
+        EOF
+        echo "Proxy routes configured successfully"
+      volumeMounts:
+        - name: proxy-config
+          mountPath: /config
+    - image: $(params.PLAYWRIGHT_IMAGE)
+      env:
+        - name: HTTP_PROXY
+          value: $(params.HTTP_PROXY)
+        - name: HTTPS_PROXY
+          value: $(params.HTTP_PROXY)
+        - name: E2E_USER
+          value: $(params.E2E_USER)
+        - name: E2E_PASSWORD
+          value: $(params.E2E_PASSWORD)
+        - name: NO_PROXY
+          value: "stage.foo.redhat.com"
+      name: e2e-tests
+      computeResources:
+        requests:
+          cpu: "2000m"
+          memory: "4Gi"
+        limits:
+          cpu: "4000m"
+          memory: "8Gi"
+      securityContext:
+        runAsUser: 0
+      script: $(params.e2e-tests-script)
+  workspaces:
+    - name: shared-code-workspace
+      mountPath: /workspace/output
+---
+# Shared E2E Pipeline definition
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: e2e-pipeline
+spec:
+  params:
+    - name: branch-name
+      type: string
+      description: Branch within the source repository
+    - name: repo-url
+      type: string
+      description: URL of the source repository
+    - name: SOURCE_ARTIFACT
+      description: URI of the trusted artifact containing the built application
+    - name: e2e_proxy
+      description: HTTP proxy for external requests
+    - name: E2E_USER
+      description: Test automation username
+    - name: E2E_PASSWORD
+      description: Test automation password
+    - name: proxy-routes-json
+      type: string
+      description: Custom proxy routes configuration (JSON)
+      default: |
+        {
+          "/index.html": {
+            "url": "http://localhost:9912",
+            "is_chrome": true
+          },
+          "/apps/chrome*": {
+            "url": "http://localhost:9912",
+            "is_chrome": true
+          }
+        }
+    - name: e2e-tests-script
+      type: string
+      description: Custom test execution script
+      default: |
+        echo "HTTP_PROXY is ${HTTP_PROXY}"
+        echo "HTTPS_PROXY is ${HTTPS_PROXY}"
+        getent hosts stage.foo.redhat.com
+        cd /workspace/output
+        npm install
+        npx playwright test
+  workspaces:
+    - name: shared-code-workspace
+      description: Workspace for passing repo source to the test run task
+  tasks:
+    - name: fetch-source
+      taskRef:
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: shared-code-workspace
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.branch-name)
+    - name: e2e-test-run
+      taskRef:
+        name: e2e-task
+      workspaces:
+        - name: shared-code-workspace
+          workspace: shared-code-workspace
+      runAfter:
+        - fetch-source
+      params:
+        - name: SOURCE_ARTIFACT
+          value: $(params.SOURCE_ARTIFACT)
+        - name: HTTP_PROXY
+          value: $(params.e2e_proxy)
+        - name: E2E_USER
+          value: $(params.E2E_USER)
+        - name: E2E_PASSWORD
+          value: $(params.E2E_PASSWORD)
+        - name: PROXY_ROUTES_JSON
+          value: $(params.proxy-routes-json)
+        - name: e2e-tests-script
+          value: $(params.e2e-tests-script)

@@ -20,20 +20,11 @@ yes | tkn pipelinerun delete e2e-pipeline-run
 
 set -e
 
-echo "Applying caddy config for insights-chrome-dev"
-kubectl apply --filename caddy_config.yaml
+echo "Applying shared E2E pipeline definition (ConfigMaps, Task, Pipeline)"
+kubectl apply --filename shared-e2e-pipeline.yaml
 
-echo "Applying proxy routes config for frontend-development-proxy"
-kubectl apply --filename proxy_routes_config.yaml
-
-echo "Applying E2E task definition"
-kubectl apply --filename e2e_task.yaml
-
-echo "Apply E2E Pipeline"
-kubectl apply --filename e2e_pipeline.yaml
-
-echo "Applying E2E PipelineRun"
-envsubst < e2e_pipeline_run.yaml | kubectl apply --filename -
+echo "Applying repository-specific PipelineRun"
+envsubst < repo-specific-pipelinerun.yaml | kubectl apply --filename -
 
 # View the logs of recent task runs
 echo "Waiting for pods to spin up..."
