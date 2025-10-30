@@ -218,10 +218,12 @@ spec:
       type: string
       description: Custom test execution script
       default: |
+        set -x
         echo "HTTP_PROXY is ${HTTP_PROXY}"
         echo "HTTPS_PROXY is ${HTTPS_PROXY}"
         getent hosts stage.foo.redhat.com
         cd /workspace/output
+        set -e
         npm install
         npx playwright test
   workspaces:
