@@ -96,6 +96,31 @@ spec:
   sidecars:
     - image: $(params.PROXY_IMAGE)
       name: frontend-dev-proxy
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          #!/bin/sh
+          echo "Waiting for /config/routes.json to be available..."
+          timeout=60
+          elapsed=0
+          while [ ! -f /config/routes.json ] && [ $elapsed -lt $timeout ]; do
+            echo "Config file not found, waiting... ($elapsed/$timeout seconds)"
+            sleep 2
+            elapsed=$((elapsed + 2))
+          done
+
+          if [ ! -f /config/routes.json ]; then
+            echo "ERROR: /config/routes.json not found after ${timeout} seconds"
+            exit 1
+          fi
+
+          echo "Config file found!"
+          cat /config/routes.json
+          echo "Starting frontend-development-proxy..."
+
+          # Start the proxy server (adjust the command based on your proxy's actual startup)
+          # sleep 2000
+          caddy run --config /etc/caddy/Caddyfile
       env:
         - name: HTTP_PROXY
           value: $(params.HTTP_PROXY)
@@ -140,7 +165,7 @@ spec:
         readOnly: false
   steps:
     - name: setup-proxy-routes
-      image: busybox:latest
+      image: quay.io/quay/busybox
       script: |
         #!/bin/sh
         set -e
@@ -148,7 +173,9 @@ spec:
         cat > /config/routes.json << 'EOF'
         $(params.PROXY_ROUTES_JSON)
         EOF
+        chmod 644 /config/routes.json
         echo "Proxy routes configured successfully"
+        cat /config/routes.json
       volumeMounts:
         - name: proxy-config
           mountPath: /config
@@ -224,6 +251,7 @@ spec:
         getent hosts stage.foo.redhat.com
         cd /workspace/output
         set -e
+        #sleep 2000
         npm install
         npx playwright test
   workspaces:
