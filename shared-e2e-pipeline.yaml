@@ -134,14 +134,14 @@ spec:
     - image: $(params.CHROME_DEV_IMAGE)
       name: insights-chrome-dev
       command: ["caddy"]
-      args: ["run", "--config", "/Caddyfile"]
+      args: ["run", "--config", "/etc/caddy/Caddyfile"]
       securityContext:
         privileged: false
       volumeMounts:
         - name: workdir
           mountPath: /var/workdir
         - name: chrome-dev-caddyfile
-          mountPath: /Caddyfile
+          mountPath: /etc/caddy/Caddyfile
           subPath: Caddyfile
     - name: run-application
       image: $(params.SOURCE_ARTIFACT)
