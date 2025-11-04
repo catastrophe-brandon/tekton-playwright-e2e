@@ -17,7 +17,7 @@ spec:
     - name: SOURCE_ARTIFACT
       # Use latest prod image or specify a PR/dev image
       # value: quay.io/redhat-services-prod/hcc-platex-services-tenant/learning-resources:latest
-      value: quay.io/redhat-user-workloads/hcc-platex-services-tenant/learning-resources/learning-resources:on-pr-9a007372f61ebe5d3c36370406a5a95b477583b1
+      value: quay.io/redhat-user-workloads/hcc-platex-services-tenant/learning-resources/learning-resources:on-pr-c1a61630f80215241cf5ae39e2fd1d101de344ad
 
     # Test credentials (substituted from environment variables)
     - name: E2E_USER
