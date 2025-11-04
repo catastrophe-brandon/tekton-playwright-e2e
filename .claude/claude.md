@@ -121,7 +121,7 @@ The e2e-task runs three sidecars alongside the Playwright test step:
 2. **insights-chrome-dev**: Serves chrome UI static assets
    - Image: `quay.io/redhat-services-prod/hcc-platex-services-tenant/insights-chrome-dev:latest`
    - Runs Caddy web server on port 9912
-   - Configuration in `/Caddyfile` (mounted from `caddy_config.yaml`)
+   - Configuration in `/etc/caddy/Caddyfile` (mounted from `caddy_config.yaml`)
    - Serves files from `/opt/app-root/src/build/stable`
    - CORS enabled for cross-origin access
 
@@ -138,7 +138,7 @@ The e2e-task uses multiple volumes:
   - All three sidecars
 
 - **chrome-dev-caddyfile**: ConfigMap mounted in insights-chrome-dev sidecar
-  - Provides Caddy server configuration at `/Caddyfile`
+  - Provides Caddy server configuration at `/etc/caddy/Caddyfile`
 
 - **frontend-proxy-routes**: ConfigMap mounted in frontend-dev-proxy sidecar
   - Provides routing configuration at `/config/routes.json`
