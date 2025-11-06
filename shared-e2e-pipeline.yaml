@@ -93,6 +93,9 @@ spec:
     - description: Actual stage environment hostname (for catch-all proxy)
       name: STAGE_ACTUAL_HOSTNAME
       type: string
+    - description: HCC environment URL
+      name: HCC_ENV_URL
+      type: string
   sidecars:
     - image: $(params.PROXY_IMAGE)
       name: frontend-dev-proxy
@@ -259,7 +262,7 @@ spec:
         - name: PROXY_PORT
           value: "1337"
         - name: HCC_ENV_URL
-          value: "https://stage.foo.redhat.com"
+          value: $(params.HCC_ENV_URL)
         - name: STAGE_ACTUAL_HOSTNAME
           value: $(params.STAGE_ACTUAL_HOSTNAME)
       securityContext:
@@ -366,6 +369,9 @@ spec:
     - name: STAGE_ACTUAL_HOSTNAME
       type: string
       description: Actual stage environment hostname (for catch-all proxy)
+    - name: HCC_ENV_URL
+      type: string
+      description: HCC environment URL
     - name: proxy-routes-json
       type: string
       description: Custom proxy routes configuration (Caddy directives)
@@ -425,6 +431,8 @@ spec:
           value: $(params.E2E_PASSWORD)
         - name: STAGE_ACTUAL_HOSTNAME
           value: $(params.STAGE_ACTUAL_HOSTNAME)
+        - name: HCC_ENV_URL
+          value: $(params.HCC_ENV_URL)
         - name: PROXY_ROUTES_JSON
           value: $(params.proxy-routes-json)
         - name: e2e-tests-script

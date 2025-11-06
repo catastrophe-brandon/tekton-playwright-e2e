@@ -28,10 +28,17 @@ spec:
       value: "${E2E_PROXY_URL}"
     - name: STAGE_ACTUAL_HOSTNAME
       value: "${STAGE_ACTUAL_HOSTNAME}"
+    - name: HCC_ENV_URL
+      value: "${HCC_ENV_URL}"
 
     # Custom proxy routes for this application (Caddy directives)
     - name: proxy-routes-json
       value: |
+        @root path /
+        handle @root {
+            reverse_proxy 127.0.0.1:9912
+        }
+
         handle /index.html {
             reverse_proxy 127.0.0.1:9912
         }
