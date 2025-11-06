@@ -15,6 +15,11 @@ if [ ! -n "${E2E_PROXY_URL}" ]; then
 	exit 1
 fi
 
+if [ ! -n "${STAGE_ACTUAL_HOSTNAME}" ]; then
+	echo "Set STAGE_ACTUAL_HOSTNAME"
+	exit 1
+fi
+
 echo "Clearing out previous run (if present)"
 yes | tkn pipelinerun delete e2e-pipeline-run
 

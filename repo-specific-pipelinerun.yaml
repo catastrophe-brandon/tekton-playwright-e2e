@@ -26,6 +26,8 @@ spec:
       value: "${E2E_PASSWORD}"
     - name: e2e_proxy
       value: "${E2E_PROXY_URL}"
+    - name: STAGE_ACTUAL_HOSTNAME
+      value: "${STAGE_ACTUAL_HOSTNAME}"
 
     # Custom proxy routes for this application (Caddy directives)
     - name: proxy-routes-json

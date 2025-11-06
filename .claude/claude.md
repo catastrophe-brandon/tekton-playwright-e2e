@@ -62,6 +62,7 @@ The Tekton pipeline orchestrates:
    export E2E_USER="your-test-username"
    export E2E_PASSWORD="your-test-password"
    export E2E_PROXY_URL="your-proxy-url"
+   export STAGE_ACTUAL_HOSTNAME="actual-stage-hostname.example.com"
    ```
 
 2. Start Minikube:
@@ -85,7 +86,7 @@ The Tekton pipeline orchestrates:
    ```
 
    This script will:
-   - Validate required environment variables (E2E_USER, E2E_PASSWORD, E2E_PROXY_URL)
+   - Validate required environment variables (E2E_USER, E2E_PASSWORD, E2E_PROXY_URL, STAGE_ACTUAL_HOSTNAME)
    - Clean up previous pipeline/task runs
    - Apply the shared E2E pipeline definition (ConfigMaps, Task, Pipeline)
    - Apply the repository-specific PipelineRun with environment variable substitution
@@ -101,6 +102,7 @@ The Tekton pipeline orchestrates:
 - `E2E_USER`: Username for E2E test authentication
 - `E2E_PASSWORD`: Password for E2E test authentication
 - `e2e_proxy`: HTTP proxy URL for external requests
+- `STAGE_ACTUAL_HOSTNAME`: Actual stage environment hostname (used in catch-all handler to bypass hostAliases DNS override)
 - `proxy-routes-json`: Custom proxy routes configuration (JSON format)
 - `e2e-tests-script`: Custom test execution script (optional override)
 
@@ -186,16 +188,24 @@ The Playwright step:
 The test environment uses a multi-container setup with the following network flow:
 
 ```
-Playwright Tests
+Playwright Tests (using stage.foo.redhat.com)
     ↓
-frontend-dev-proxy (routes.json)
+    (hostAliases redirect to 127.0.0.1:1337)
+    ↓
+frontend-dev-proxy (Caddy routes)
     ↓
     ├─→ /apps/chrome* → localhost:9912 (insights-chrome-dev Caddy)
     ├─→ /learning-resources* → localhost:8000 (run-application)
-    └─→ Other routes → External stage environment (via HTTP_PROXY)
+    └─→ Other routes → https://${STAGE_ACTUAL_HOSTNAME} (via HTTP_PROXY to real stage)
 ```
 
-The `localhost` hostname in the proxy routes allows the frontend-dev-proxy to communicate with other sidecars running in the same pod.
+**Key architectural points:**
+
+- Tests use `stage.foo.redhat.com` (configured in test code)
+- `hostAliases` in PodSpec redirect `stage.foo.redhat.com` to `127.0.0.1` for all containers
+- Frontend-dev-proxy serves TLS on port 1337 with certs for `stage.foo.redhat.com`
+- `localhost` in handle routes allows communication with sidecars in the same pod
+- Catch-all handler uses `STAGE_ACTUAL_HOSTNAME` (not in hostAliases) to reach the real stage environment through `HTTP_PROXY`
 
 ### Dynamic Configuration
 

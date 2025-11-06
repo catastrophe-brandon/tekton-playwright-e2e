@@ -90,6 +90,9 @@ spec:
       name: PROXY_IMAGE
       type: string
       default: "quay.io/redhat-user-workloads/hcc-platex-services-tenant/frontend-development-proxy:latest"
+    - description: Actual stage environment hostname (for catch-all proxy)
+      name: STAGE_ACTUAL_HOSTNAME
+      type: string
   sidecars:
     - image: $(params.PROXY_IMAGE)
       name: frontend-dev-proxy
@@ -191,8 +194,17 @@ spec:
             # Insert 'debug' after the first opening brace
             sed -i '1,/^{/s/^{/{\n debug/' /etc/caddy/Caddyfile
           fi
-          
-          # fix formatting of Caddyfile 
+
+          # Replace stage.foo.redhat.com in catch-all handler with actual stage hostname
+          echo "Configuring catch-all handler to use actual stage environment..."
+          if [ -n "$STAGE_ACTUAL_HOSTNAME" ]; then
+            echo "Replacing stage.foo.redhat.com with ${STAGE_ACTUAL_HOSTNAME} in catch-all handler"
+            sed -i "s|https://stage\.foo\.redhat\.com|https://${STAGE_ACTUAL_HOSTNAME}|g" /etc/caddy/Caddyfile
+          else
+            echo "WARNING: STAGE_ACTUAL_HOSTNAME not set, catch-all will use stage.foo.redhat.com (may fail due to hostAliases)"
+          fi
+
+          # fix formatting of Caddyfile
           caddy fmt --overwrite /etc/caddy/Caddyfile
 
           echo "Final Caddyfile (after LOCAL_ROUTES substitution):"
@@ -248,6 +260,8 @@ spec:
           value: "1337"
         - name: HCC_ENV_URL
           value: "https://stage.foo.redhat.com"
+        - name: STAGE_ACTUAL_HOSTNAME
+          value: $(params.STAGE_ACTUAL_HOSTNAME)
       securityContext:
         privileged: false
       volumeMounts:
@@ -349,6 +363,9 @@ spec:
       description: Test automation username
     - name: E2E_PASSWORD
       description: Test automation password
+    - name: STAGE_ACTUAL_HOSTNAME
+      type: string
+      description: Actual stage environment hostname (for catch-all proxy)
     - name: proxy-routes-json
       type: string
       description: Custom proxy routes configuration (Caddy directives)
@@ -406,6 +423,8 @@ spec:
           value: $(params.E2E_USER)
         - name: E2E_PASSWORD
           value: $(params.E2E_PASSWORD)
+        - name: STAGE_ACTUAL_HOSTNAME
+          value: $(params.STAGE_ACTUAL_HOSTNAME)
         - name: PROXY_ROUTES_JSON
           value: $(params.proxy-routes-json)
         - name: e2e-tests-script
