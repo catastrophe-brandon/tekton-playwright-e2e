@@ -67,11 +67,11 @@ spec:
       name: PROXY_ROUTES_JSON
       type: string
       default: |
-        route /index.html {
+        handle /index.html {
             reverse_proxy http://localhost:9912
         }
 
-        route /apps/chrome* {
+        handle /apps/chrome* {
             reverse_proxy http://localhost:9912
         }
     - description: Application port (default 8000)
@@ -197,14 +197,13 @@ spec:
 
           echo "Final Caddyfile (after LOCAL_ROUTES substitution):"
           cat /etc/caddy/Caddyfile
-          sleep 10000
 
           # Wait for insights-chrome-dev to be ready on port 9912
           echo "Waiting for insights-chrome-dev to be ready on port 9912..."
           max_wait=60
           elapsed=0
           while [ $elapsed -lt $max_wait ]; do
-            if curl -f -m 2 http://127.0.0.1:9912 >/dev/null 2>&1; then
+            if wget -q -O /dev/null --timeout=2 http://127.0.0.1:9912 2>/dev/null; then
               echo "insights-chrome-dev is ready!"
               break
             fi
@@ -222,7 +221,7 @@ spec:
           echo "Waiting for run-application to be ready on port 8000..."
           elapsed=0
           while [ $elapsed -lt $max_wait ]; do
-            if curl -f -m 2 http://127.0.0.1:8000 >/dev/null 2>&1; then
+            if wget -q -O /dev/null --timeout=2 http://127.0.0.1:8000 2>/dev/null; then
               echo "run-application is ready!"
               break
             fi
@@ -354,11 +353,11 @@ spec:
       type: string
       description: Custom proxy routes configuration (Caddy directives)
       default: |
-        route /index.html {
+        handle /index.html {
             reverse_proxy http://localhost:9912
         }
 
-        route /apps/chrome* {
+        handle /apps/chrome* {
             reverse_proxy http://localhost:9912
         }
     - name: e2e-tests-script

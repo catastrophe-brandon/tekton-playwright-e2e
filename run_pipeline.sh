@@ -18,6 +18,8 @@ fi
 echo "Clearing out previous run (if present)"
 yes | tkn pipelinerun delete e2e-pipeline-run
 
+sleep 10
+
 set -e
 
 echo "Applying shared E2E pipeline definition (ConfigMaps, Task, Pipeline)"

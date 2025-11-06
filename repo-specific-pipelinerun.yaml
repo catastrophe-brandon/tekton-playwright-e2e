@@ -30,48 +30,48 @@ spec:
     # Custom proxy routes for this application (Caddy directives)
     - name: proxy-routes-json
       value: |
-        route /index.html {
-            reverse_proxy http://127.0.0.1:9912
+        handle /index.html {
+            reverse_proxy 127.0.0.1:9912
         }
 
-        route /apps/chrome* {
-            reverse_proxy http://127.0.0.1:9912
+        handle /apps/chrome* {
+            reverse_proxy 127.0.0.1:9912
         }
 
-        route /apps/learning-resources* {
-            reverse_proxy http://127.0.0.1:8000
+        handle /apps/learning-resources* {
+            reverse_proxy 127.0.0.1:8000
         }
 
-        route /settings/learning-resources* {
-            reverse_proxy http://127.0.0.1:8000
+        handle /settings/learning-resources* {
+            reverse_proxy 127.0.0.1:8000
         }
 
-        route /openshift/learning-resources* {
-            reverse_proxy http://127.0.0.1:8000
+        handle /openshift/learning-resources* {
+            reverse_proxy 127.0.0.1:8000
         }
 
-        route /ansible/learning-resources* {
-            reverse_proxy http://127.0.0.1:8000
+        handle /ansible/learning-resources* {
+            reverse_proxy 127.0.0.1:8000
         }
 
-        route /insights/learning-resources* {
-            reverse_proxy http://127.0.0.1:8000
+        handle /insights/learning-resources* {
+            reverse_proxy 127.0.0.1:8000
         }
 
-        route /edge/learning-resources* {
-            reverse_proxy http://127.0.0.1:8000
+        handle /edge/learning-resources* {
+            reverse_proxy 127.0.0.1:8000
         }
 
-        route /iam/learning-resources* {
-            reverse_proxy http://127.0.0.1:8000
+        handle /iam/learning-resources* {
+            reverse_proxy 127.0.0.1:8000
         }
 
-        route /learning-resources* {
-            reverse_proxy http://127.0.0.1:8000
+        handle /learning-resources* {
+            reverse_proxy 127.0.0.1:8000
         }
 
-        route /learning-resources/creator* {
-            reverse_proxy http://127.0.0.1:8000
+        handle /learning-resources/creator* {
+            reverse_proxy 127.0.0.1:8000
         }
 
     # Optional: Override the default test script
