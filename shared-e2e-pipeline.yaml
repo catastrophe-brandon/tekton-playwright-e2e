@@ -63,19 +63,16 @@ spec:
     - description: Test user password
       name: E2E_PASSWORD
       type: string
-    - description: Proxy routes JSON configuration
+    - description: Proxy routes configuration (Caddy directives)
       name: PROXY_ROUTES_JSON
       type: string
       default: |
-        {
-          "/index.html": {
-            "url": "http://localhost:9912",
-            "is_chrome": true
-          },
-          "/apps/chrome*": {
-            "url": "http://localhost:9912",
-            "is_chrome": true
-          }
+        route /index.html {
+            reverse_proxy http://localhost:9912
+        }
+
+        route /apps/chrome* {
+            reverse_proxy http://localhost:9912
         }
     - description: Application port (default 8000)
       name: APP_PORT
@@ -100,32 +97,158 @@ spec:
       args:
         - |
           #!/bin/sh
-          echo "Waiting for /config/routes.json to be available..."
+          echo "Waiting for /config/routes to be available..."
           timeout=60
           elapsed=0
-          while [ ! -f /config/routes.json ] && [ $elapsed -lt $timeout ]; do
+          while [ ! -f /config/routes ] && [ $elapsed -lt $timeout ]; do
             echo "Config file not found, waiting... ($elapsed/$timeout seconds)"
             sleep 2
             elapsed=$((elapsed + 2))
           done
 
-          if [ ! -f /config/routes.json ]; then
-            echo "ERROR: /config/routes.json not found after ${timeout} seconds"
+          if [ ! -f /config/routes ]; then
+            echo "ERROR: /config/routes not found after ${timeout} seconds"
             exit 1
           fi
 
           echo "Config file found!"
-          cat /config/routes.json
-          echo "Starting frontend-development-proxy..."
+          echo "Routes content:"
+          cat /config/routes
 
-          # Start the proxy server (adjust the command based on your proxy's actual startup)
-          # sleep 2000
+          # Export LOCAL_ROUTES environment variable from the file
+          export LOCAL_ROUTES="$(cat /config/routes)"
+          echo "LOCAL_ROUTES environment variable set"
+
+          # Check if Caddyfile exists and contains {$LOCAL_ROUTES} placeholder
+          echo "Checking for {$LOCAL_ROUTES} placeholder in Caddyfile..."
+          if [ ! -f /etc/caddy/Caddyfile ]; then
+            echo "ERROR: /etc/caddy/Caddyfile not found!"
+            exit 1
+          fi
+
+          echo "Original Caddyfile:"
+          cat /etc/caddy/Caddyfile
+
+          if ! grep -q '{$LOCAL_ROUTES}' /etc/caddy/Caddyfile; then
+            echo "ERROR: {$LOCAL_ROUTES} placeholder not found in Caddyfile!"
+            echo "The Caddyfile must contain {$LOCAL_ROUTES} where routes should be injected."
+            exit 1
+          fi
+
+          echo "Found {$LOCAL_ROUTES} placeholder, performing manual substitution..."
+
+          # Check for required tools
+          echo "Checking for required tools..."
+          for tool in awk sed grep cat; do
+            if ! command -v $tool >/dev/null 2>&1; then
+              echo "ERROR: Required tool '$tool' not found in container!"
+              exit 1
+            fi
+          done
+          echo "All required tools available"
+
+          # Manually substitute all environment variables in the Caddyfile
+          # This gives us full visibility of the final config before Caddy starts
+
+          # Read the routes and properly indent them (4 spaces to match Caddyfile indentation)
+          sed 's/^/    /' /config/routes > /tmp/routes_indented.txt
+
+          # Substitute {$LOCAL_ROUTES} with actual routes, and other env vars
+          awk -v hcc_env="$HCC_ENV" -v proxy_port="$PROXY_PORT" -v hcc_env_url="$HCC_ENV_URL" '
+          BEGIN {
+            while ((getline line < "/tmp/routes_indented.txt") > 0) {
+              routes = routes line "\n"
+            }
+            close("/tmp/routes_indented.txt")
+            # Remove trailing newline
+            sub(/\n$/, "", routes)
+          }
+          {
+            line = $0
+            # Replace {$LOCAL_ROUTES}
+            if (line ~ /\{\$LOCAL_ROUTES\}/) {
+              print routes
+            } else {
+              # Replace other environment variables
+              gsub(/\{\$HCC_ENV\}/, hcc_env, line)
+              gsub(/\{\$PROXY_PORT\}/, proxy_port, line)
+              gsub(/\{\$HCC_ENV_URL\}/, hcc_env_url, line)
+              print line
+            }
+          }
+          ' /etc/caddy/Caddyfile > /tmp/Caddyfile.new
+
+          mv /tmp/Caddyfile.new /etc/caddy/Caddyfile
+
+          # Enable debug logging and admin API
+          echo "Enabling debug mode and admin API..."
+
+          # Change 'admin off' to 'admin :2019' to enable admin API
+          sed -i 's/admin off/admin :2019/g' /etc/caddy/Caddyfile
+
+          # Add debug to global options block if not already present
+          if ! grep -q "debug" /etc/caddy/Caddyfile; then
+            # Insert 'debug' after the first opening brace
+            sed -i '1,/^{/s/^{/{\n debug/' /etc/caddy/Caddyfile
+          fi
+          
+          # fix formatting of Caddyfile 
+          caddy fmt --overwrite /etc/caddy/Caddyfile
+
+          echo "Final Caddyfile (after LOCAL_ROUTES substitution):"
+          cat /etc/caddy/Caddyfile
+          sleep 10000
+
+          # Wait for insights-chrome-dev to be ready on port 9912
+          echo "Waiting for insights-chrome-dev to be ready on port 9912..."
+          max_wait=60
+          elapsed=0
+          while [ $elapsed -lt $max_wait ]; do
+            if curl -f -m 2 http://127.0.0.1:9912 >/dev/null 2>&1; then
+              echo "insights-chrome-dev is ready!"
+              break
+            fi
+            echo "Waiting for insights-chrome-dev... ($elapsed/$max_wait seconds)"
+            sleep 2
+            elapsed=$((elapsed + 2))
+          done
+
+          if [ $elapsed -ge $max_wait ]; then
+            echo "ERROR: insights-chrome-dev did not become ready after ${max_wait} seconds"
+            exit 1
+          fi
+
+          # Wait for run-application to be ready on port 8000
+          echo "Waiting for run-application to be ready on port 8000..."
+          elapsed=0
+          while [ $elapsed -lt $max_wait ]; do
+            if curl -f -m 2 http://127.0.0.1:8000 >/dev/null 2>&1; then
+              echo "run-application is ready!"
+              break
+            fi
+            echo "Waiting for run-application... ($elapsed/$max_wait seconds)"
+            sleep 2
+            elapsed=$((elapsed + 2))
+          done
+
+          if [ $elapsed -ge $max_wait ]; then
+            echo "WARNING: run-application did not become ready after ${max_wait} seconds"
+            exit 1
+          fi
+
+          echo "Starting frontend-development-proxy..."
           caddy run --config /etc/caddy/Caddyfile
       env:
         - name: HTTP_PROXY
           value: $(params.HTTP_PROXY)
         - name: HTTPS_PROXY
           value: $(params.HTTP_PROXY)
+        - name: HCC_ENV
+          value: "stage"
+        - name: PROXY_PORT
+          value: "1337"
+        - name: HCC_ENV_URL
+          value: "https://stage.foo.redhat.com"
       securityContext:
         privileged: false
       volumeMounts:
@@ -169,13 +292,13 @@ spec:
       script: |
         #!/bin/sh
         set -e
-        echo "Writing proxy routes configuration..."
-        cat > /config/routes.json << 'EOF'
+        echo "Writing proxy routes configuration (Caddy directives)..."
+        cat > /config/routes << 'EOF'
         $(params.PROXY_ROUTES_JSON)
         EOF
-        chmod 644 /config/routes.json
-        echo "Proxy routes configured successfully"
-        cat /config/routes.json
+        chmod 644 /config/routes
+        echo "Proxy routes configured successfully:"
+        cat /config/routes
       volumeMounts:
         - name: proxy-config
           mountPath: /config
@@ -229,29 +352,27 @@ spec:
       description: Test automation password
     - name: proxy-routes-json
       type: string
-      description: Custom proxy routes configuration (JSON)
+      description: Custom proxy routes configuration (Caddy directives)
       default: |
-        {
-          "/index.html": {
-            "url": "http://localhost:9912",
-            "is_chrome": true
-          },
-          "/apps/chrome*": {
-            "url": "http://localhost:9912",
-            "is_chrome": true
-          }
+        route /index.html {
+            reverse_proxy http://localhost:9912
+        }
+
+        route /apps/chrome* {
+            reverse_proxy http://localhost:9912
         }
     - name: e2e-tests-script
       type: string
       description: Custom test execution script
       default: |
+        # TODO: Wait for stage.foo.redhat.com to be responsive
         set -x
         echo "HTTP_PROXY is ${HTTP_PROXY}"
         echo "HTTPS_PROXY is ${HTTPS_PROXY}"
         getent hosts stage.foo.redhat.com
         cd /workspace/output
         set -e
-        #sleep 2000
+        sleep 2000
         npm install
         npx playwright test
   workspaces:

@@ -27,45 +27,51 @@ spec:
     - name: e2e_proxy
       value: "${E2E_PROXY_URL}"
 
-    # Custom proxy routes for this application
+    # Custom proxy routes for this application (Caddy directives)
     - name: proxy-routes-json
       value: |
-        {
-          "/index.html": {
-            "url": "http://localhost:9912",
-            "is_chrome": true
-          },
-          "/apps/chrome*": {
-            "url": "http://localhost:9912",
-            "is_chrome": true
-          },
-          "/apps/learning-resources*": {
-            "url": "http://localhost:8000"
-          },
-          "/settings/learning-resources*": {
-            "url": "http://localhost:8000"
-          },
-          "/openshift/learning-resources*":  {
-            "url": "http://localhost:8000"
-          },
-          "/ansible/learning-resources*":  {
-            "url": "http://localhost:8000"
-          },
-          "/insights/learning-resources*":  {
-            "url": "http://localhost:8000"
-          },
-          "/edge/learning-resources*":  {
-            "url": "http://localhost:8000"
-          },
-          "/iam/learning-resources*":  {
-            "url": "http://localhost:8000"
-          },
-          "/learning-resources*":  {
-            "url": "http://localhost:8000"
-          },
-          "/learning-resources/creator*": {
-            "url": "http://localhost:8000"
-          }
+        route /index.html {
+            reverse_proxy http://127.0.0.1:9912
+        }
+
+        route /apps/chrome* {
+            reverse_proxy http://127.0.0.1:9912
+        }
+
+        route /apps/learning-resources* {
+            reverse_proxy http://127.0.0.1:8000
+        }
+
+        route /settings/learning-resources* {
+            reverse_proxy http://127.0.0.1:8000
+        }
+
+        route /openshift/learning-resources* {
+            reverse_proxy http://127.0.0.1:8000
+        }
+
+        route /ansible/learning-resources* {
+            reverse_proxy http://127.0.0.1:8000
+        }
+
+        route /insights/learning-resources* {
+            reverse_proxy http://127.0.0.1:8000
+        }
+
+        route /edge/learning-resources* {
+            reverse_proxy http://127.0.0.1:8000
+        }
+
+        route /iam/learning-resources* {
+            reverse_proxy http://127.0.0.1:8000
+        }
+
+        route /learning-resources* {
+            reverse_proxy http://127.0.0.1:8000
+        }
+
+        route /learning-resources/creator* {
+            reverse_proxy http://127.0.0.1:8000
         }
 
     # Optional: Override the default test script
