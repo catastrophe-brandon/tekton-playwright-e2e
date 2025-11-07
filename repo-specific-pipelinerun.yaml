@@ -52,35 +52,31 @@ spec:
         }
 
         handle /settings/learning-resources* {
-            reverse_proxy 127.0.0.1:8000
+            reverse_proxy 127.0.0.1:9912
         }
 
         handle /openshift/learning-resources* {
-            reverse_proxy 127.0.0.1:8000
+            reverse_proxy 127.0.0.1:9912
         }
 
         handle /ansible/learning-resources* {
-            reverse_proxy 127.0.0.1:8000
+            reverse_proxy 127.0.0.1:9912
         }
 
         handle /insights/learning-resources* {
-            reverse_proxy 127.0.0.1:8000
+            reverse_proxy 127.0.0.1:9912
         }
 
         handle /edge/learning-resources* {
-            reverse_proxy 127.0.0.1:8000
+            reverse_proxy 127.0.0.1:9912
         }
 
         handle /iam/learning-resources* {
-            reverse_proxy 127.0.0.1:8000
+            reverse_proxy 127.0.0.1:9912
         }
 
         handle /learning-resources* {
-            reverse_proxy 127.0.0.1:8000
-        }
-
-        handle /learning-resources/creator* {
-            reverse_proxy 127.0.0.1:8000
+            reverse_proxy 127.0.0.1:9912
         }
 
     # Optional: Override the default test script
