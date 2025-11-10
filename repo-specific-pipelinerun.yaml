@@ -30,6 +30,8 @@ spec:
       value: "${STAGE_ACTUAL_HOSTNAME}"
     - name: HCC_ENV_URL
       value: "${HCC_ENV_URL}"
+    - name: HCC_ENV
+      value: "stage"
 
     # Custom proxy routes for this application (Caddy directives)
     - name: proxy-routes-json
