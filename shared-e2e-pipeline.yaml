@@ -107,7 +107,7 @@ spec:
                 order rh_identity_transform before respond
                 cache
                 admin :2019
-                debug
+                # debug
               }
           
               $HCC_ENV.foo.redhat.com:$PROXY_PORT {
@@ -212,7 +212,7 @@ spec:
           mkdir -p /etc/caddy
           cat > /etc/caddy/Caddyfile << 'EOF'
           {
-            debug
+            # debug
           }
 
           :9912 {
