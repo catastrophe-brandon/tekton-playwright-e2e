@@ -109,7 +109,7 @@ The Tekton pipeline orchestrates:
 - `HCC_ENV_URL`: HCC environment URL (used for environment variable substitution in proxy configuration)
 - `proxy-routes`: Custom proxy routes configuration (Caddy directives format)
 - `e2e-tests-script`: Custom test execution script (optional override)
-- `PLAYWRIGHT_IMAGE`: Playwright container image (default: `quay.io/btweed/playwright_e2e:latest`)
+- `PLAYWRIGHT_IMAGE`: Playwright container image (default: `mcr.microsoft.com/playwright:v1.50.0-noble`)
 - `CHROME_DEV_IMAGE`: Chrome dev container image (default: `quay.io/redhat-services-prod/hcc-platex-services-tenant/insights-chrome-dev:latest`)
 - `PROXY_IMAGE`: Frontend proxy container image (default: `quay.io/redhat-user-workloads/hcc-platex-services-tenant/frontend-development-proxy:latest`)
 - `APP_PORT`: Application port (default: `8000`)
@@ -184,10 +184,10 @@ minikube delete
 
 The Playwright step:
 - Runs as root user (UID 0)
-- Uses the image: `quay.io/btweed/playwright_e2e:latest`
-  - Based on `mcr.microsoft.com/playwright:v1.50.0-noble`
-  - Includes bind9 DNS utilities for network diagnostics
-  - Can be rebuilt using `playwright_image/build_and_push.sh`
+- Uses the image: `mcr.microsoft.com/playwright:v1.50.0-noble` (default)
+  - Can be overridden via the `PLAYWRIGHT_IMAGE` parameter
+  - A custom image with bind9 DNS utilities is available at `quay.io/btweed/playwright_e2e:latest`
+  - Custom images can be built using `playwright_image/build_and_push.sh`
 - Executes tests from `/workspace/output` (the cloned source)
 - Has access to environment variables:
   - `HTTP_PROXY` / `HTTPS_PROXY`: Proxy configuration
@@ -240,7 +240,7 @@ The pipeline uses a dynamic configuration approach:
 To avoid potential rate limiting issues when pulling container images, you can pre-load images into Minikube:
 
 1. The `cluster_setup/image_load.sh` script pre-loads critical images:
-   - `quay.io/btweed/playwright_e2e:latest`
+   - `quay.io/btweed/playwright_e2e:latest` (optional custom image with DNS utilities)
    - `quay.io/redhat-services-prod/hcc-platex-services-tenant/insights-chrome-dev:latest`
    - `busybox:latest`
 
@@ -249,7 +249,7 @@ To avoid potential rate limiting issues when pulling container images, you can p
    ./cluster_setup/image_load.sh
    ```
 
-Note: You must be authenticated to Quay.io with podman for this script to work.
+Note: You must be authenticated to Quay.io with podman for this script to work. The default Microsoft Playwright image (`mcr.microsoft.com/playwright:v1.50.0-noble`) will be pulled automatically and doesn't need pre-loading.
 
 ### Building Custom Playwright Image
 
