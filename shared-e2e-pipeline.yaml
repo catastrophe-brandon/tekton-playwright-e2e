@@ -107,10 +107,11 @@ spec:
                 order rh_identity_transform before respond
                 cache
                 admin :2019
+                # Uncomment the line below to enable debugging
                 # debug
               }
           
-              $HCC_ENV.foo.redhat.com:$PROXY_PORT {
+              stage.foo.redhat.com:$PROXY_PORT {
                 log default {
                   output stdout
                   format transform "{common_log}"
