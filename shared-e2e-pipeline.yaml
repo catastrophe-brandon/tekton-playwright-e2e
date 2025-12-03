@@ -22,7 +22,7 @@ spec:
       name: E2E_PASSWORD
       type: string
     - description: Proxy routes configuration (Caddy directives)
-      name: PROXY_ROUTES_JSON
+      name: PROXY_ROUTES
       type: string
       default: |
         handle /index.html {
@@ -468,7 +468,7 @@ spec:
         set -e
         echo "Writing proxy routes configuration (Caddy directives)..."
         cat > /config/routes << 'EOF'
-        $(params.PROXY_ROUTES_JSON)
+        $(params.PROXY_ROUTES)
         EOF
         chmod 644 /config/routes
         echo "Proxy routes configured successfully:"
@@ -533,7 +533,7 @@ spec:
     - name: HCC_ENV
       type: string
       description: short name for the HCC environment url
-    - name: proxy-routes-json
+    - name: proxy-routes
       type: string
       description: Custom proxy routes configuration (Caddy directives)
       default: |
@@ -555,6 +555,7 @@ spec:
         getent hosts stage.foo.redhat.com
         cd /workspace/output
         set -e
+        # Uncomment the following sleep to keep the pod active for some live debugging
         # sleep 2000
         npm install
         npx playwright test
@@ -594,7 +595,7 @@ spec:
           value: $(params.STAGE_ACTUAL_HOSTNAME)
         - name: HCC_ENV_URL
           value: $(params.HCC_ENV_URL)
-        - name: PROXY_ROUTES_JSON
-          value: $(params.proxy-routes-json)
+        - name: PROXY_ROUTES
+          value: $(params.proxy-routes)
         - name: e2e-tests-script
           value: $(params.e2e-tests-script)
