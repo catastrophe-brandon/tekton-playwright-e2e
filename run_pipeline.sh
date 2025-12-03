@@ -20,6 +20,16 @@ if [ ! -n "${STAGE_ACTUAL_HOSTNAME}" ]; then
 	exit 1
 fi
 
+if [ ! -n "${HTTP_PROXY}" ]; then
+	echo "Set HTTP_PROXY"
+	exit 1
+fi
+
+if [ ! -n "${HTTPS_PROXY}" ]; then
+	echo "Set HTTPS_PROXY"
+	exit 1
+fi
+
 echo "Clearing out previous run (if present)"
 yes | tkn pipelinerun delete e2e-pipeline-run
 
