@@ -39,7 +39,7 @@ spec:
     - description: Playwright image to use for testing
       name: PLAYWRIGHT_IMAGE
       type: string
-      default: "quay.io/btweed/playwright_e2e:latest"
+      default: "mcr.microsoft.com/playwright:v1.50.0-noble"
     - description: Chrome dev image
       name: CHROME_DEV_IMAGE
       type: string
