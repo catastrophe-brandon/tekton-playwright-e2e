@@ -44,8 +44,10 @@ The Tekton pipeline orchestrates:
 
 ### Execution Scripts
 - `run_pipeline.sh`: Validates environment variables, applies shared pipeline definition, and follows logs
-- `browse_locally.sh`: Helper script for local browsing
-- `forward.sh`: Port forwarding helper script
+
+### Helper Scripts (`helper_scripts/`)
+- `browse_locally.sh`: Helper script for local browsing (opens https://stage.foo.redhat.com:1337)
+- `forward.sh`: Port forwarding helper script (forwards port 1337 from pod to localhost)
 
 ## Prerequisites
 
@@ -105,7 +107,7 @@ The Tekton pipeline orchestrates:
 - `e2e_proxy`: HTTP proxy URL for external requests
 - `STAGE_ACTUAL_HOSTNAME`: Actual stage environment hostname (used in catch-all handler to bypass hostAliases DNS override)
 - `HCC_ENV_URL`: HCC environment URL (used for environment variable substitution in proxy configuration)
-- `proxy-routes-json`: Custom proxy routes configuration (Caddy directives format)
+- `proxy-routes`: Custom proxy routes configuration (Caddy directives format)
 - `e2e-tests-script`: Custom test execution script (optional override)
 - `PLAYWRIGHT_IMAGE`: Playwright container image (default: `quay.io/btweed/playwright_e2e:latest`)
 - `CHROME_DEV_IMAGE`: Chrome dev container image (default: `quay.io/redhat-services-prod/hcc-platex-services-tenant/insights-chrome-dev:latest`)
@@ -160,7 +162,7 @@ The e2e-task uses multiple volumes:
 - **proxy-config**: EmptyDir volume mounted in frontend-dev-proxy sidecar
   - Written dynamically by the `setup-proxy-routes` step
   - Contains routing configuration at `/config/routes`
-  - Populated from the `PROXY_ROUTES_JSON` parameter (customizable per repository)
+  - Populated from the `PROXY_ROUTES` parameter (customizable per repository)
 
 ## Important Notes
 
@@ -208,11 +210,11 @@ frontend-dev-proxy:1337 (Caddy with custom routes)
     ↓
     ├─→ /apps/chrome* → 127.0.0.1:9912 (insights-chrome-dev Caddy)
     ├─→ /apps/learning-resources* → 127.0.0.1:8000 (run-application Caddy)
-    ├─→ Other /learning-resources/* variants → 127.0.0.1:9912 (configurable via proxy-routes-json)
+    ├─→ Other /learning-resources/* variants → 127.0.0.1:9912 (configurable via proxy-routes)
     └─→ Catch-all routes → https://${STAGE_ACTUAL_HOSTNAME} (via HTTP_PROXY to real stage)
 ```
 
-Note: Routes are fully customizable via the `proxy-routes-json` parameter in Caddy directive format.
+Note: Routes are fully customizable via the `proxy-routes` parameter in Caddy directive format.
 
 **Key architectural points:**
 
@@ -227,8 +229,8 @@ Note: Routes are fully customizable via the `proxy-routes-json` parameter in Cad
 
 The pipeline uses a dynamic configuration approach:
 
-1. **Proxy Routes Configuration**: The `setup-proxy-routes` step (using busybox) writes the `PROXY_ROUTES_JSON` parameter to `/config/routes` before the sidecars start
-2. **Repository-Specific Routes**: Each repository can customize routing in `repo-specific-pipelinerun.yaml` by overriding the `proxy-routes-json` parameter with Caddy directives
+1. **Proxy Routes Configuration**: The `setup-proxy-routes` step (using busybox) writes the `PROXY_ROUTES` parameter to `/config/routes` before the sidecars start
+2. **Repository-Specific Routes**: Each repository can customize routing in `repo-specific-pipelinerun.yaml` by overriding the `proxy-routes` parameter with Caddy directives
 3. **Startup Synchronization**: The frontend-dev-proxy waits up to 60 seconds for the routes configuration file to be available before starting
 4. **Environment Variable Substitution**: The frontend-dev-proxy performs environment variable substitution in its Caddyfile, replacing placeholders like `{$LOCAL_ROUTES}`, `{$HCC_ENV_URL}`, `{$HCC_ENV}`, and `{$STAGE_ACTUAL_HOSTNAME}`
 5. **Readiness Checks**: The frontend-dev-proxy waits for both insights-chrome-dev (port 9912) and run-application (port 8000) to become ready before starting Caddy
@@ -273,7 +275,7 @@ The pipeline is designed to be reusable across different repositories. To custom
 1. **Copy and edit `repo-specific-pipelinerun.yaml`**:
    - Update `branch-name` and `repo-url` to point to your repository
    - Update `SOURCE_ARTIFACT` to point to your application image
-   - Customize `proxy-routes-json` to match your application's routing needs (using Caddy directive format)
+   - Customize `proxy-routes` to match your application's routing needs (using Caddy directive format)
    - Ensure environment variables are set: `E2E_USER`, `E2E_PASSWORD`, `E2E_PROXY_URL`, `STAGE_ACTUAL_HOSTNAME`, `HCC_ENV_URL`
 
 2. **Optional: Override default images**:

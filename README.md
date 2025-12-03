@@ -74,15 +74,17 @@ tekton-playwright/
 │   ├── Dockerfile                    # Playwright v1.50.0 + bind9 utilities
 │   └── build_and_push.sh             # Build and push to Quay.io
 │
+├── helper_scripts/                   # Helper scripts for local testing
+│   ├── browse_locally.sh             # Open browser to local proxy
+│   └── forward.sh                    # Port forward from pod to localhost
+│
 ├── shared-e2e-pipeline.yaml          # Shared Tekton definitions
 │                                     # (ConfigMap, Task, Pipeline)
 │
 ├── repo-specific-pipelinerun.yaml    # Repository-specific PipelineRun
 │                                     # with custom proxy routes
 │
-├── run_pipeline.sh                   # Execute the E2E pipeline
-├── browse_locally.sh                 # Helper for local browsing
-└── forward.sh                        # Port forwarding helper
+└── run_pipeline.sh                   # Execute the E2E pipeline
 ```
 
 ## Architecture
@@ -98,7 +100,7 @@ frontend-dev-proxy:1337 (Caddy with custom routes)
     ↓
     ├─→ /apps/chrome* → 127.0.0.1:9912 (insights-chrome-dev)
     ├─→ /apps/learning-resources* → 127.0.0.1:8000 (run-application)
-    ├─→ Custom routes (via proxy-routes-json) → configurable
+    ├─→ Custom routes (via proxy-routes) → configurable
     └─→ Catch-all → https://${STAGE_ACTUAL_HOSTNAME} (via HTTP_PROXY)
 ```
 
@@ -114,7 +116,7 @@ frontend-dev-proxy:1337 (Caddy with custom routes)
 
 1. **fetch-source**: Clones the test repository using Tekton's git-clone task
 2. **e2e-test-run**: Executes the e2e-task which includes:
-   - **setup-proxy-routes** step: Writes custom proxy routes from `proxy-routes-json` parameter
+   - **setup-proxy-routes** step: Writes custom proxy routes from `proxy-routes` parameter
    - **Playwright tests** step: Runs E2E tests from the cloned source
    - **Three sidecars**:
      - `frontend-dev-proxy`: Routes requests using custom Caddy directives (port 1337)
@@ -136,7 +138,7 @@ The pipeline is configured through two files:
 - `branch-name`: Git branch to test
 - `repo-url`: Repository URL containing E2E tests
 - `SOURCE_ARTIFACT`: Container image with the application build
-- `proxy-routes-json`: Custom proxy routes configuration (Caddy directives format)
+- `proxy-routes`: Custom proxy routes configuration (Caddy directives format)
 - Optional overrides: `PLAYWRIGHT_IMAGE`, `CHROME_DEV_IMAGE`, `PROXY_IMAGE`, `APP_PORT`, `e2e-tests-script`
 
 ### Environment Variables
@@ -157,7 +159,7 @@ The pipeline is designed to be reusable. To customize for a new repository:
 1. **Copy and edit `repo-specific-pipelinerun.yaml`**:
    - Update `branch-name` and `repo-url` to point to your repository
    - Update `SOURCE_ARTIFACT` to point to your application image
-   - Customize `proxy-routes-json` with Caddy directives for your routing needs
+   - Customize `proxy-routes` with Caddy directives for your routing needs
    - Set environment variables: `E2E_USER`, `E2E_PASSWORD`, `E2E_PROXY_URL`, `STAGE_ACTUAL_HOSTNAME`, `HCC_ENV_URL`
 
 2. **Optional overrides**:
@@ -219,7 +221,7 @@ kubectl describe pod <pod-name>
 The frontend-dev-proxy sidecar includes:
 - Debug mode enabled by default
 - Admin API on port 2019
-- Custom routes written to `/config/routes` from `proxy-routes-json` parameter
+- Custom routes written to `/config/routes` from `proxy-routes` parameter
 - Environment variable substitution: `{$LOCAL_ROUTES}`, `{$HCC_ENV_URL}`, `{$STAGE_ACTUAL_HOSTNAME}`
 
 ## Advanced Details
@@ -231,7 +233,7 @@ For comprehensive documentation including:
 - Dynamic configuration and startup synchronization
 - Sidecar-specific details
 
-See [.claude/CLAUDE.md](.claude/CLAUDE.md).
+See [.claude/claude.md](.claude/claude.md).
 
 ## License
 
