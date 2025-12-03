@@ -16,4 +16,14 @@ kubectl wait --for=condition=ready pod -l app=tekton-pipelines-webhook -n tekton
 echo "Tekton installation complete and ready!"
 
 # Install the git-clone task for use in the pipeline
+echo "Installing git-clone task from Tekton Hub..."
 tkn hub install task git-clone
+
+# Verify the git-clone task was installed successfully
+echo "Verifying git-clone task installation..."
+if tkn task describe git-clone &> /dev/null; then
+    echo "✓ git-clone task installed successfully!"
+else
+    echo "✗ Error: git-clone task installation failed!"
+    exit 1
+fi
