@@ -271,176 +271,14 @@ spec:
         - |
           #!/bin/sh
           set -e
-
-          echo "Patching Caddyfile to add learning-resources routes..."
+          echo "Setting up Caddyfile based on user-specified config"
 
           # Create a temporary file with the new routes
-          cat > /tmp/learning_resources_routes.txt << 'EOF'
-
-          # Handle all learning-resources routes
-          @learning_resources_match {
-              path /learning-resources /learning-resources/
-          }
-          handle @learning_resources_match {
-              uri strip_prefix /learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @learning_resources_subpath {
-              path /learning-resources/*
-          }
-          handle @learning_resources_subpath {
-              uri strip_prefix /learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @settings_learning_resources_match {
-              path /settings/learning-resources /settings/learning-resources/
-          }
-          handle @settings_learning_resources_match {
-              uri strip_prefix /settings/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @settings_learning_resources_subpath {
-              path /settings/learning-resources/*
-          }
-          handle @settings_learning_resources_subpath {
-              uri strip_prefix /settings/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @openshift_learning_resources_match {
-              path /openshift/learning-resources /openshift/learning-resources/
-          }
-          handle @openshift_learning_resources_match {
-              uri strip_prefix /openshift/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @openshift_learning_resources_subpath {
-              path /openshift/learning-resources/*
-          }
-          handle @openshift_learning_resources_subpath {
-              uri strip_prefix /openshift/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @ansible_learning_resources_match {
-              path /ansible/learning-resources /ansible/learning-resources/
-          }
-          handle @ansible_learning_resources_match {
-              uri strip_prefix /ansible/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @ansible_learning_resources_subpath {
-              path /ansible/learning-resources/*
-          }
-          handle @ansible_learning_resources_subpath {
-              uri strip_prefix /ansible/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @insights_learning_resources_match {
-              path /insights/learning-resources /insights/learning-resources/
-          }
-          handle @insights_learning_resources_match {
-              uri strip_prefix /insights/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @insights_learning_resources_subpath {
-              path /insights/learning-resources/*
-          }
-          handle @insights_learning_resources_subpath {
-              uri strip_prefix /insights/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @edge_learning_resources_match {
-              path /edge/learning-resources /edge/learning-resources/
-          }
-          handle @edge_learning_resources_match {
-              uri strip_prefix /edge/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @edge_learning_resources_subpath {
-              path /edge/learning-resources/*
-          }
-          handle @edge_learning_resources_subpath {
-              uri strip_prefix /edge/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @iam_learning_resources_match {
-              path /iam/learning-resources /iam/learning-resources/
-          }
-          handle @iam_learning_resources_match {
-              uri strip_prefix /iam/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @iam_learning_resources_subpath {
-              path /iam/learning-resources/*
-          }
-          handle @iam_learning_resources_subpath {
-              uri strip_prefix /iam/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
+          cat > /etc/caddy/Caddyfile << 'EOF'
+          $(params.APP_CADDY_CONFIG)
           EOF
 
-          # Use awk to insert the new routes before the "handle / {" line
-          awk '
-          /^[[:space:]]*handle \/ \{/ && !done {
-              while ((getline line < "/tmp/learning_resources_routes.txt") > 0) {
-                  print line
-              }
-              close("/tmp/learning_resources_routes.txt")
-              done = 1
-          }
-          { print }
-          ' /etc/caddy/Caddyfile > /tmp/Caddyfile.new
-
-          mv /tmp/Caddyfile.new /etc/caddy/Caddyfile
-
-          echo "Patched Caddyfile:"
+          echo "Caddyfile:"
           cat /etc/caddy/Caddyfile
 
           echo "Starting application with Caddy..."
@@ -547,6 +385,8 @@ spec:
         handle /apps/chrome* {
             reverse_proxy http://localhost:9912
         }
+    - name: app-caddy-config
+      description: caddy config for the test application
     - name: e2e-tests-script
       type: string
       description: Custom test execution script
@@ -600,5 +440,7 @@ spec:
           value: $(params.HCC_ENV_URL)
         - name: PROXY_ROUTES
           value: $(params.proxy-routes)
+        - name: APP_CADDY_CONFIG
+          value: $(params.app-caddy-config)
         - name: e2e-tests-script
           value: $(params.e2e-tests-script)
