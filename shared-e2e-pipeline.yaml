@@ -33,7 +33,7 @@ spec:
             reverse_proxy http://localhost:9912
         }
     - description: Test application caddyfile config
-      name: APP_CADDY_CONFIG
+      name: app-caddy-config
       type: string
     - description: Application port (default 8000)
       name: APP_PORT
@@ -42,7 +42,7 @@ spec:
     - description: Playwright image to use for testing
       name: PLAYWRIGHT_IMAGE
       type: string
-      default: "mcr.microsoft.com/playwright:v1.50.0-noble"
+      default: "mcr.microsoft.com/playwright:v1.57.0-noble"
     - description: Chrome dev image
       name: CHROME_DEV_IMAGE
       type: string
@@ -273,11 +273,13 @@ spec:
           set -e
           echo "Setting up Caddyfile based on user-specified config"
 
-          # Create a temporary file with the new routes
-          cat > /etc/caddy/Caddyfile << 'EOF'
-          $(params.APP_CADDY_CONFIG)
+          # Create the Caddyfile with the user-provided config
+          cat > /etc/caddy/Caddyfile << EOF
+          $(params.app-caddy-config)
           EOF
 
+          caddy fmt --overwrite /etc/caddy/Caddyfile
+          
           echo "Caddyfile:"
           cat /etc/caddy/Caddyfile
 
@@ -391,16 +393,25 @@ spec:
       type: string
       description: Custom test execution script
       default: |
-        # TODO: Wait for stage.foo.redhat.com to be responsive
         set -x
         echo "HTTP_PROXY is ${HTTP_PROXY}"
         echo "HTTPS_PROXY is ${HTTPS_PROXY}"
         getent hosts stage.foo.redhat.com
-        cd /workspace/output
+        
         set -e
-        # Uncomment the following sleep to keep the pod active for some live debugging
+        # Wait for stage.foo.redhat.com to be responsive
+        timeout 120s bash -c 'until curl -k https://stage.foo.redhat.com:1337 > /dev/null 2>&1; do
+        echo "Waiting for dev server to be ready"
+        sleep 5
+        done'
+        echo "Dev server ready!"
+        
+        cd /workspace/output
+       
+        # Uncomment the following sleep to keep the pod active for some live debugging with minikube dashboard
         # sleep 2000
-        npm install
+        npm install @playwright/test
+        # npx playwright install
         npx playwright test
   workspaces:
     - name: shared-code-workspace
@@ -440,7 +451,7 @@ spec:
           value: $(params.HCC_ENV_URL)
         - name: PROXY_ROUTES
           value: $(params.proxy-routes)
-        - name: APP_CADDY_CONFIG
+        - name: app-caddy-config
           value: $(params.app-caddy-config)
         - name: e2e-tests-script
           value: $(params.e2e-tests-script)
