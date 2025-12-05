@@ -32,6 +32,9 @@ spec:
         handle /apps/chrome* {
             reverse_proxy http://localhost:9912
         }
+    - description: Test application caddyfile config
+      name: APP_CADDY_CONFIG
+      type: string
     - description: Application port (default 8000)
       name: APP_PORT
       type: string
