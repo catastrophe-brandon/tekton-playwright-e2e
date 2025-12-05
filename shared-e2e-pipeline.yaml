@@ -170,7 +170,7 @@ spec:
               echo "Waiting for run-application to be ready on port 8000..."
               elapsed=0
               while [ $elapsed -lt $max_wait ]; do
-                if wget -q -O /dev/null --timeout=2 http://127.0.0.1:8000 2>/dev/null; then
+                if wget -q -O /dev/null --timeout=2 http://127.0.0.1:8000/app.info.json 2>/dev/null; then
                   echo "run-application is ready!"
                   break
                 fi
@@ -398,6 +398,9 @@ spec:
         echo "HTTPS_PROXY is ${HTTPS_PROXY}"
         getent hosts stage.foo.redhat.com
         
+        # Uncomment the following sleep to keep the pod active for some live debugging with minikube dashboard
+        # sleep 2000
+        
         set -e
         # Wait for stage.foo.redhat.com to be responsive
         timeout 120s bash -c 'until curl -k https://stage.foo.redhat.com:1337 > /dev/null 2>&1; do
@@ -407,9 +410,6 @@ spec:
         echo "Dev server ready!"
         
         cd /workspace/output
-       
-        # Uncomment the following sleep to keep the pod active for some live debugging with minikube dashboard
-        # sleep 2000
         npm install @playwright/test
         # npx playwright install
         npx playwright test
