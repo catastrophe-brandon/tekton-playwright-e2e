@@ -33,6 +33,37 @@ spec:
     - name: HCC_ENV
       value: "stage"
 
+    # Caddy configuration for the test application
+    - name: app-caddy-config
+      value: |
+        :8000 {
+            root * /srv/dist
+
+            # Handle /learning-resources routes
+            @learning_resources_match {
+                path /learning-resources /learning-resources/
+            }
+            handle @learning_resources_match {
+                uri strip_prefix /learning-resources
+                rewrite / /index.html
+                file_server
+            }
+
+            @learning_resources_subpath {
+                path /learning-resources/*
+            }
+            handle @learning_resources_subpath {
+                uri strip_prefix /learning-resources
+                file_server
+            }
+
+            # Default handler for root
+            handle / {
+                try_files {path} /index.html
+                file_server
+            }
+        }
+
     # Custom proxy routes for this application (Caddy directives)
     - name: proxy-routes
       value: |

@@ -32,6 +32,9 @@ spec:
         handle /apps/chrome* {
             reverse_proxy http://localhost:9912
         }
+    - description: Test application caddyfile config
+      name: app-caddy-config
+      type: string
     - description: Application port (default 8000)
       name: APP_PORT
       type: string
@@ -39,7 +42,7 @@ spec:
     - description: Playwright image to use for testing
       name: PLAYWRIGHT_IMAGE
       type: string
-      default: "mcr.microsoft.com/playwright:v1.50.0-noble"
+      default: "mcr.microsoft.com/playwright:v1.57.0-noble"
     - description: Chrome dev image
       name: CHROME_DEV_IMAGE
       type: string
@@ -167,7 +170,7 @@ spec:
               echo "Waiting for run-application to be ready on port 8000..."
               elapsed=0
               while [ $elapsed -lt $max_wait ]; do
-                if wget -q -O /dev/null --timeout=2 http://127.0.0.1:8000 2>/dev/null; then
+                if wget -q -O /dev/null --timeout=2 http://127.0.0.1:8000/app.info.json 2>/dev/null; then
                   echo "run-application is ready!"
                   break
                 fi
@@ -268,176 +271,16 @@ spec:
         - |
           #!/bin/sh
           set -e
+          echo "Setting up Caddyfile based on user-specified config"
 
-          echo "Patching Caddyfile to add learning-resources routes..."
-
-          # Create a temporary file with the new routes
-          cat > /tmp/learning_resources_routes.txt << 'EOF'
-
-          # Handle all learning-resources routes
-          @learning_resources_match {
-              path /learning-resources /learning-resources/
-          }
-          handle @learning_resources_match {
-              uri strip_prefix /learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @learning_resources_subpath {
-              path /learning-resources/*
-          }
-          handle @learning_resources_subpath {
-              uri strip_prefix /learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @settings_learning_resources_match {
-              path /settings/learning-resources /settings/learning-resources/
-          }
-          handle @settings_learning_resources_match {
-              uri strip_prefix /settings/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @settings_learning_resources_subpath {
-              path /settings/learning-resources/*
-          }
-          handle @settings_learning_resources_subpath {
-              uri strip_prefix /settings/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @openshift_learning_resources_match {
-              path /openshift/learning-resources /openshift/learning-resources/
-          }
-          handle @openshift_learning_resources_match {
-              uri strip_prefix /openshift/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @openshift_learning_resources_subpath {
-              path /openshift/learning-resources/*
-          }
-          handle @openshift_learning_resources_subpath {
-              uri strip_prefix /openshift/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @ansible_learning_resources_match {
-              path /ansible/learning-resources /ansible/learning-resources/
-          }
-          handle @ansible_learning_resources_match {
-              uri strip_prefix /ansible/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @ansible_learning_resources_subpath {
-              path /ansible/learning-resources/*
-          }
-          handle @ansible_learning_resources_subpath {
-              uri strip_prefix /ansible/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @insights_learning_resources_match {
-              path /insights/learning-resources /insights/learning-resources/
-          }
-          handle @insights_learning_resources_match {
-              uri strip_prefix /insights/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @insights_learning_resources_subpath {
-              path /insights/learning-resources/*
-          }
-          handle @insights_learning_resources_subpath {
-              uri strip_prefix /insights/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @edge_learning_resources_match {
-              path /edge/learning-resources /edge/learning-resources/
-          }
-          handle @edge_learning_resources_match {
-              uri strip_prefix /edge/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @edge_learning_resources_subpath {
-              path /edge/learning-resources/*
-          }
-          handle @edge_learning_resources_subpath {
-              uri strip_prefix /edge/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @iam_learning_resources_match {
-              path /iam/learning-resources /iam/learning-resources/
-          }
-          handle @iam_learning_resources_match {
-              uri strip_prefix /iam/learning-resources
-              rewrite / /index.html
-              file_server * {
-                  root /srv/dist
-              }
-          }
-
-          @iam_learning_resources_subpath {
-              path /iam/learning-resources/*
-          }
-          handle @iam_learning_resources_subpath {
-              uri strip_prefix /iam/learning-resources
-              file_server * {
-                  root /srv/dist
-              }
-          }
+          # Create the Caddyfile with the user-provided config
+          cat > /etc/caddy/Caddyfile << EOF
+          $(params.app-caddy-config)
           EOF
 
-          # Use awk to insert the new routes before the "handle / {" line
-          awk '
-          /^[[:space:]]*handle \/ \{/ && !done {
-              while ((getline line < "/tmp/learning_resources_routes.txt") > 0) {
-                  print line
-              }
-              close("/tmp/learning_resources_routes.txt")
-              done = 1
-          }
-          { print }
-          ' /etc/caddy/Caddyfile > /tmp/Caddyfile.new
-
-          mv /tmp/Caddyfile.new /etc/caddy/Caddyfile
-
-          echo "Patched Caddyfile:"
+          caddy fmt --overwrite /etc/caddy/Caddyfile
+          
+          echo "Caddyfile:"
           cat /etc/caddy/Caddyfile
 
           echo "Starting application with Caddy..."
@@ -544,20 +387,31 @@ spec:
         handle /apps/chrome* {
             reverse_proxy http://localhost:9912
         }
+    - name: app-caddy-config
+      description: caddy config for the test application
     - name: e2e-tests-script
       type: string
       description: Custom test execution script
       default: |
-        # TODO: Wait for stage.foo.redhat.com to be responsive
         set -x
         echo "HTTP_PROXY is ${HTTP_PROXY}"
         echo "HTTPS_PROXY is ${HTTPS_PROXY}"
         getent hosts stage.foo.redhat.com
-        cd /workspace/output
-        set -e
-        # Uncomment the following sleep to keep the pod active for some live debugging
+        
+        # Uncomment the following sleep to keep the pod active for some live debugging with minikube dashboard
         # sleep 2000
-        npm install
+        
+        set -e
+        # Wait for stage.foo.redhat.com to be responsive
+        timeout 120s bash -c 'until curl -k https://stage.foo.redhat.com:1337 > /dev/null 2>&1; do
+        echo "Waiting for dev server to be ready"
+        sleep 5
+        done'
+        echo "Dev server ready!"
+        
+        cd /workspace/output
+        npm install @playwright/test
+        # npx playwright install
         npx playwright test
   workspaces:
     - name: shared-code-workspace
@@ -597,5 +451,7 @@ spec:
           value: $(params.HCC_ENV_URL)
         - name: PROXY_ROUTES
           value: $(params.proxy-routes)
+        - name: app-caddy-config
+          value: $(params.app-caddy-config)
         - name: e2e-tests-script
           value: $(params.e2e-tests-script)
