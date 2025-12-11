@@ -33,84 +33,13 @@ spec:
     - name: HCC_ENV
       value: "stage"
 
-    # Caddy configuration for the test application
+    # Caddy configuration for the test application (loaded from caddy_config/app_config)
     - name: app-caddy-config
-      value: |
-        :8000 {
-            root * /srv/dist
+      value: "${APP_CADDY_CONFIG}"
 
-            # Handle /learning-resources routes
-            @learning_resources_match {
-                path /learning-resources /learning-resources/
-            }
-            handle @learning_resources_match {
-                uri strip_prefix /learning-resources
-                rewrite / /index.html
-                file_server
-            }
-
-            @learning_resources_subpath {
-                path /learning-resources/*
-            }
-            handle @learning_resources_subpath {
-                uri strip_prefix /learning-resources
-                file_server
-            }
-
-            # Default handler for root
-            handle / {
-                try_files {path} /index.html
-                file_server
-            }
-        }
-
-    # Custom proxy routes for this application (Caddy directives)
+    # Custom proxy routes for this application (loaded from caddy_config/proxy_config)
     - name: proxy-routes
-      value: |
-        @root path /
-        handle @root {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /index.html {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /apps/chrome* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /apps/learning-resources* {
-            reverse_proxy 127.0.0.1:8000
-        }
-
-        handle /settings/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /openshift/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /ansible/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /insights/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /edge/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /iam/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
+      value: "${PROXY_ROUTES}"
 
     # Optional: Override the default test script
     # - name: e2e-tests-script

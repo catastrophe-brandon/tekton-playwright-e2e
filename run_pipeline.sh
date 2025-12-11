@@ -40,8 +40,62 @@ set -e
 echo "Applying shared E2E pipeline definition (ConfigMaps, Task, Pipeline)"
 kubectl apply --filename shared-e2e-pipeline.yaml
 
-echo "Applying repository-specific PipelineRun"
-envsubst < repo-specific-pipelinerun.yaml | kubectl apply --filename -
+echo "Generating repository-specific PipelineRun with Caddy configs"
+cat <<EOF | kubectl apply --filename -
+---
+# Repository-specific PipelineRun configuration
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: e2e-pipeline-run
+spec:
+  params:
+    - name: branch-name
+      value: btweed/e2e
+    - name: repo-url
+      value: https://github.com/RedHatInsights/learning-resources.git
+    - name: SOURCE_ARTIFACT
+      value: quay.io/redhat-services-prod/hcc-platex-services-tenant/learning-resources:latest
+    - name: E2E_USER
+      value: "${E2E_USER}"
+    - name: E2E_PASSWORD
+      value: "${E2E_PASSWORD}"
+    - name: e2e_proxy
+      value: "${E2E_PROXY_URL}"
+    - name: STAGE_ACTUAL_HOSTNAME
+      value: "${STAGE_ACTUAL_HOSTNAME}"
+    - name: HCC_ENV_URL
+      value: "${HCC_ENV_URL:-https://console.stage.redhat.com}"
+    - name: HCC_ENV
+      value: "stage"
+    - name: app-caddy-config
+      value: |
+$(cat caddy_config/app_config | while IFS= read -r line; do echo "        $line"; done)
+    - name: proxy-routes
+      value: |
+$(cat caddy_config/proxy_config | while IFS= read -r line; do echo "        $line"; done)
+  workspaces:
+    - name: shared-code-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+  pipelineRef:
+    name: e2e-pipeline
+  taskRunSpecs:
+    - pipelineTaskName: e2e-test-run
+      podTemplate:
+        hostAliases:
+          - ip: "::1"
+            hostnames:
+              - "stage.foo.redhat.com"
+          - ip: "127.0.0.1"
+            hostnames:
+              - "stage.foo.redhat.com"
+EOF
 
 # View the logs of recent task runs
 echo "Waiting for pods to spin up..."
