@@ -9,15 +9,14 @@ spec:
   params:
     # Git repository configuration
     - name: branch-name
-      value: btweed/e2e
+      value: btweed/add-e2e-pipeline
     - name: repo-url
-      value: https://github.com/RedHatInsights/learning-resources.git
+      value: https://github.com/RedHatInsights/frontend-starter-app.git
 
     # Application artifact to test
     - name: SOURCE_ARTIFACT
       # Use latest prod image or specify a PR/dev image
-      value: quay.io/redhat-services-prod/hcc-platex-services-tenant/learning-resources:latest
-      # value: quay.io/redhat-user-workloads/hcc-platex-services-tenant/learning-resources/learning-resources:on-pr-c1a61630f80215241cf5ae39e2fd1d101de344ad
+      value: quay.io/redhat-user-workloads/rh-platform-experien-tenant/frontend-starter-app/frontend-starter-app:on-pr-f73fe5eb8794469fe0f0eb3453abcfd4da2614e6
 
     # Test credentials (substituted from environment variables)
     - name: E2E_USER
@@ -33,84 +32,11 @@ spec:
     - name: HCC_ENV
       value: "stage"
 
-    # Caddy configuration for the test application
-    - name: app-caddy-config
-      value: |
-        :8000 {
-            root * /srv/dist
-
-            # Handle /learning-resources routes
-            @learning_resources_match {
-                path /learning-resources /learning-resources/
-            }
-            handle @learning_resources_match {
-                uri strip_prefix /learning-resources
-                rewrite / /index.html
-                file_server
-            }
-
-            @learning_resources_subpath {
-                path /learning-resources/*
-            }
-            handle @learning_resources_subpath {
-                uri strip_prefix /learning-resources
-                file_server
-            }
-
-            # Default handler for root
-            handle / {
-                try_files {path} /index.html
-                file_server
-            }
-        }
-
-    # Custom proxy routes for this application (Caddy directives)
-    - name: proxy-routes
-      value: |
-        @root path /
-        handle @root {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /index.html {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /apps/chrome* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /apps/learning-resources* {
-            reverse_proxy 127.0.0.1:8000
-        }
-
-        handle /settings/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /openshift/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /ansible/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /insights/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /edge/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /iam/learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
-
-        handle /learning-resources* {
-            reverse_proxy 127.0.0.1:9912
-        }
+    # ConfigMap names for Caddy configuration
+    - name: PROXY_ROUTES_CONFIGMAP
+      value: "frontend-starter-app-dev-proxy-caddyfile"
+    - name: APP_CONFIG_CONFIGMAP
+      value: "frontend-starter-app-test-app-caddyfile"
 
     # Optional: Override the default test script
     # - name: e2e-tests-script
@@ -147,3 +73,11 @@ spec:
           - ip: "127.0.0.1"
             hostnames:
               - "stage.foo.redhat.com"
+        # Override volumes to mount ConfigMaps
+        volumes:
+          - name: proxy-config
+            configMap:
+              name: frontend-starter-app-dev-proxy-caddyfile
+          - name: app-config
+            configMap:
+              name: frontend-starter-app-test-app-caddyfile

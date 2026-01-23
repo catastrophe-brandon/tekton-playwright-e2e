@@ -37,8 +37,12 @@ sleep 10
 
 set -e
 
-echo "Applying shared E2E pipeline definition (ConfigMaps, Task, Pipeline)"
+echo "Applying shared E2E pipeline definition (Task, Pipeline)"
 kubectl apply --filename shared-e2e-pipeline.yaml
+
+echo "Applying repository-specific ConfigMaps"
+kubectl apply --filename frontend-starter-app-dev-proxy-caddyfile.yaml
+kubectl apply --filename frontend-starter-app-test-app-caddyfile.yaml
 
 echo "Applying repository-specific PipelineRun"
 envsubst < repo-specific-pipelinerun.yaml | kubectl apply --filename -
