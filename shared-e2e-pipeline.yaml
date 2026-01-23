@@ -21,19 +21,11 @@ spec:
     - description: Test user password
       name: E2E_PASSWORD
       type: string
-    - description: Proxy routes configuration (Caddy directives)
-      name: PROXY_ROUTES
+    - description: Name of ConfigMap containing proxy routes
+      name: PROXY_ROUTES_CONFIGMAP
       type: string
-      default: |
-        handle /index.html {
-            reverse_proxy http://localhost:9912
-        }
-
-        handle /apps/chrome* {
-            reverse_proxy http://localhost:9912
-        }
-    - description: Test application caddyfile config
-      name: app-caddy-config
+    - description: Name of ConfigMap containing app Caddyfile
+      name: APP_CONFIG_CONFIGMAP
       type: string
     - description: Application port (default 8000)
       name: APP_PORT
@@ -68,40 +60,19 @@ spec:
       args:
         - |
               #!/bin/sh
-              echo "Waiting for /config/routes to be available..."
-              timeout=60
-              elapsed=0
-              while [ ! -f /config/routes ] && [ $elapsed -lt $timeout ]; do
-                echo "Config file not found, waiting... ($elapsed/$timeout seconds)"
-                sleep 2
-                elapsed=$((elapsed + 2))
-              done
+              echo "Reading proxy routes from ConfigMap..."
 
               if [ ! -f /config/routes ]; then
-                echo "ERROR: /config/routes not found after ${timeout} seconds"
+                echo "ERROR: /config/routes not found in ConfigMap mount"
                 exit 1
               fi
 
-              echo "Config file found!"
               echo "Routes content:"
               cat /config/routes
 
-              # Export LOCAL_ROUTES environment variable from the file
+              # Export LOCAL_ROUTES environment variable from the ConfigMap file
               export LOCAL_ROUTES="$(cat /config/routes)"
-              echo "LOCAL_ROUTES environment variable set"
-
-              # Check if Caddyfile exists and contains {$LOCAL_ROUTES} placeholder
-              echo "Checking for LOCAL_ROUTES placeholder in Caddyfile..."
-              if [ ! -f /etc/caddy/Caddyfile ]; then
-                echo "ERROR: /etc/caddy/Caddyfile not found!"
-                exit 1
-              fi
-
-              if ! grep -q '{$LOCAL_ROUTES}' /etc/caddy/Caddyfile; then
-                echo "ERROR: {$LOCAL_ROUTES} placeholder not found in Caddyfile!"
-                echo "The Caddyfile must contain {$LOCAL_ROUTES} where routes should be injected."
-                exit 1
-              fi
+              echo "LOCAL_ROUTES environment variable set from ConfigMap"
           
               # Same as the default one in the fe-dev-proxy container but debug and admin are turned on
               cat << CADDY_DEF > /etc/caddy/Caddyfile
@@ -220,7 +191,7 @@ spec:
           }
 
           :9912 {
-              root * /opt/app-root/src/build/stable
+              root * /srv/dist
 
               # Handle /apps/chrome* requests - strip prefix and serve
               @app_match {
@@ -271,30 +242,33 @@ spec:
         - |
           #!/bin/sh
           set -e
-          echo "Setting up Caddyfile based on user-specified config"
+          echo "Setting up Caddyfile from ConfigMap"
 
-          # Create the Caddyfile with the user-provided config
-          cat > /etc/caddy/Caddyfile << EOF
-          $(params.app-caddy-config)
-          EOF
+          if [ ! -f /app-config/Caddyfile ]; then
+            echo "ERROR: /app-config/Caddyfile not found in ConfigMap mount"
+            exit 1
+          fi
+
+          # Copy the Caddyfile from ConfigMap to the expected location
+          cp /app-config/Caddyfile /etc/caddy/Caddyfile
 
           caddy fmt --overwrite /etc/caddy/Caddyfile
-          
-          echo "Caddyfile:"
+
+          echo "Caddyfile loaded from ConfigMap:"
           cat /etc/caddy/Caddyfile
 
           echo "Starting application with Caddy..."
-          # Start Caddy with the patched configuration
+          # Start Caddy with the configuration from ConfigMap
           exec caddy run --config /etc/caddy/Caddyfile
       securityContext:
         privileged: false
       volumeMounts:
         - name: workdir
           mountPath: /var/workdir
+        - name: app-config
+          mountPath: /app-config
   volumes:
     - name: workdir
-      emptyDir: {}
-    - name: proxy-config
       emptyDir: {}
     - name: chrome-dev-caddyfile
       emptyDir: {}
@@ -304,21 +278,6 @@ spec:
         name: workdir
         readOnly: false
   steps:
-    - name: setup-proxy-routes
-      image: quay.io/quay/busybox
-      script: |
-        #!/bin/sh
-        set -e
-        echo "Writing proxy routes configuration (Caddy directives)..."
-        cat > /config/routes << 'EOF'
-        $(params.PROXY_ROUTES)
-        EOF
-        chmod 644 /config/routes
-        echo "Proxy routes configured successfully:"
-        cat /config/routes
-      volumeMounts:
-        - name: proxy-config
-          mountPath: /config
     - image: $(params.PLAYWRIGHT_IMAGE)
       env:
         - name: HTTP_PROXY
@@ -376,19 +335,12 @@ spec:
     - name: HCC_ENV
       type: string
       description: short name for the HCC environment url
-    - name: proxy-routes
+    - name: PROXY_ROUTES_CONFIGMAP
       type: string
-      description: Custom proxy routes configuration (Caddy directives)
-      default: |
-        handle /index.html {
-            reverse_proxy http://localhost:9912
-        }
-
-        handle /apps/chrome* {
-            reverse_proxy http://localhost:9912
-        }
-    - name: app-caddy-config
-      description: caddy config for the test application
+      description: Name of ConfigMap containing proxy routes
+    - name: APP_CONFIG_CONFIGMAP
+      type: string
+      description: Name of ConfigMap containing app Caddyfile
     - name: e2e-tests-script
       type: string
       description: Custom test execution script
@@ -399,7 +351,7 @@ spec:
         getent hosts stage.foo.redhat.com
         
         # Uncomment the following sleep to keep the pod active for some live debugging with minikube dashboard
-        # sleep 2000
+        sleep 2000
         
         set -e
         # Wait for stage.foo.redhat.com to be responsive
@@ -449,9 +401,9 @@ spec:
           value: $(params.STAGE_ACTUAL_HOSTNAME)
         - name: HCC_ENV_URL
           value: $(params.HCC_ENV_URL)
-        - name: PROXY_ROUTES
-          value: $(params.proxy-routes)
-        - name: app-caddy-config
-          value: $(params.app-caddy-config)
+        - name: PROXY_ROUTES_CONFIGMAP
+          value: $(params.PROXY_ROUTES_CONFIGMAP)
+        - name: APP_CONFIG_CONFIGMAP
+          value: $(params.APP_CONFIG_CONFIGMAP)
         - name: e2e-tests-script
           value: $(params.e2e-tests-script)

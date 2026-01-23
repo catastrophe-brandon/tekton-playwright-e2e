@@ -1,0 +1,140 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-starter-app-test-app-caddyfile
+data:
+  Caddyfile: |
+    # Caddyfile config for the application undergoing testing (This is NOT JSON)
+    {
+      	auto_https disable_redirects
+      	servers {
+      		metrics
+      	}
+      }
+
+      :9000 {
+      	metrics /metrics
+      }
+
+      :8000 {
+      	log
+
+      	# Handle main app route
+      	@app_match {
+      		path /apps/frontend-starter-app*
+      	}
+      	handle @app_match {
+      		uri strip_prefix /apps/frontend-starter-app
+      		file_server * {
+      			root /srv/dist
+      			browse
+      		}
+      	}
+
+        # Handle env based main route
+        @env_match {
+            path /default*
+        }
+
+        handle @env_match {
+            uri strip_prefix /default
+            file_server * {
+                root /srv/dist
+                browse
+            }
+        }
+
+      # Basic handling for application name without any prefixes in path
+      @frontend-starter-app_match {
+          path /frontend-starter-app/frontend-starter-app/
+      }
+      handle @frontend-starter-app_match {
+          uri strip_prefix /frontend-starter-app
+          rewrite / /index.html
+          file_server * {
+              root /srv/dist
+          }
+      }
+
+      @frontend-starter-app_subpath {
+          path /frontend-starter-app/*
+      }
+      handle @frontend-starter-app_subpath {
+          uri strip_prefix /frontend-starter-app
+          file_server * {
+              root /srv/dist
+          }
+      }
+
+      # Beginning of dynamically-generated frontend-starter-app routes from appUrl
+      
+        @apps_frontend-starter-app_match {
+          path /apps/frontend-starter-app /apps/frontend-starter-app/
+        }
+        handle @apps_frontend-starter-app_match {
+            uri strip_prefix /apps/frontend-starter-app
+            rewrite / /index.html
+            file_server * {
+                root /srv/dist
+            }
+        }
+
+        @apps_frontend-starter-app_subpath {
+            path /apps/frontend-starter-app/*
+        }
+        handle @apps_frontend-starter-app_subpath {
+            uri strip_prefix /apps/frontend-starter-app
+            file_server * {
+                root /srv/dist
+            }
+        }
+      
+        @staging_starter_match {
+          path /staging/starter /staging/starter/
+        }
+        handle @staging_starter_match {
+            uri strip_prefix /staging/starter
+            rewrite / /index.html
+            file_server * {
+                root /srv/dist
+            }
+        }
+
+        @staging_starter_subpath {
+            path /staging/starter/*
+        }
+        handle @staging_starter_subpath {
+            uri strip_prefix /staging/starter
+            file_server * {
+                root /srv/dist
+            }
+        }
+      
+        @staging_foo_starter_match {
+          path /staging/foo/starter /staging/foo/starter/
+        }
+        handle @staging_foo_starter_match {
+            uri strip_prefix /staging/foo/starter
+            rewrite / /index.html
+            file_server * {
+                root /srv/dist
+            }
+        }
+
+        @staging_foo_starter_subpath {
+            path /staging/foo/starter/*
+        }
+        handle @staging_foo_starter_subpath {
+            uri strip_prefix /staging/foo/starter
+            file_server * {
+                root /srv/dist
+            }
+        }
+      
+
+      # Handle the root path
+      handle / {
+        redir /apps/chrome/index.html permanent
+      }
+    }
