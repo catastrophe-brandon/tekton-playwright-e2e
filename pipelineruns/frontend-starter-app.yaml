@@ -1,0 +1,74 @@
+---
+# PipelineRun configuration for frontend-starter-app repository
+# Environment variables will be substituted at runtime using envsubst
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: e2e-pipeline-run
+spec:
+  params:
+    # Git repository configuration
+    - name: branch-name
+      value: ${BRANCH_NAME}
+    - name: repo-url
+      value: https://github.com/RedHatInsights/frontend-starter-app.git
+
+    # Application artifact to test
+    - name: SOURCE_ARTIFACT
+      value: ${SOURCE_ARTIFACT}
+
+    # Test credentials (substituted from environment variables)
+    - name: E2E_USER
+      value: "${E2E_USER}"
+    - name: E2E_PASSWORD
+      value: "${E2E_PASSWORD}"
+    - name: e2e_proxy
+      value: "${E2E_PROXY_URL}"
+    - name: STAGE_ACTUAL_HOSTNAME
+      value: "${STAGE_ACTUAL_HOSTNAME}"
+    - name: HCC_ENV_URL
+      value: "${HCC_ENV_URL}"
+    - name: HCC_ENV
+      value: "${HCC_ENV}"
+
+    # ConfigMap names for Caddy configuration
+    - name: PROXY_ROUTES_CONFIGMAP
+      value: "frontend-starter-app-dev-proxy-caddyfile"
+    - name: APP_CONFIG_CONFIGMAP
+      value: "frontend-starter-app-test-app-caddyfile"
+
+  # Workspace configuration
+  workspaces:
+    - name: shared-code-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+
+  # Reference to the shared pipeline definition
+  pipelineRef:
+    name: e2e-pipeline
+
+  # Task-specific runtime configuration
+  taskRunSpecs:
+    - pipelineTaskName: e2e-test-run
+      podTemplate:
+        # Override /etc/hosts to redirect stage.foo.redhat.com to localhost
+        hostAliases:
+          - ip: "::1"
+            hostnames:
+              - "stage.foo.redhat.com"
+          - ip: "127.0.0.1"
+            hostnames:
+              - "stage.foo.redhat.com"
+        # Override volumes to mount ConfigMaps
+        volumes:
+          - name: proxy-config
+            configMap:
+              name: frontend-starter-app-dev-proxy-caddyfile
+          - name: app-config
+            configMap:
+              name: frontend-starter-app-test-app-caddyfile

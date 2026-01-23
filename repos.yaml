@@ -1,0 +1,31 @@
+---
+# Repository configuration for E2E testing pipeline
+# Each repository can define multiple ConfigMaps that will be fetched and applied
+
+# NOTE: The external ConfigMap repository is specified via environment variables:
+#   CONFIGMAP_REPO: Git repository URL containing ConfigMaps (required)
+#   CONFIGMAP_BRANCH: Branch to clone from (optional, defaults to 'main')
+
+# Repository-specific configurations
+repositories:
+  frontend-starter-app:
+    # PipelineRun file to use (relative to pipelineruns/ directory)
+    pipelinerun: frontend-starter-app.yaml
+
+    # ConfigMaps to fetch and apply from the external configmap-repo
+    configmaps:
+      - path: tenants-config/cluster/stone-prd-rh01/tenants/rh-platform-experien-tenant/frontend-starter-app-dev-proxy-caddyfile.yaml
+      - path: tenants-config/cluster/stone-prd-rh01/tenants/rh-platform-experien-tenant/frontend-starter-app-test-app-caddyfile.yaml
+
+  learning-resources:
+    pipelinerun: learning-resources.yaml
+    configmaps:
+      - path: tenants-config/cluster/stone-prd-rh01/tenants/hcc-platex-services-tenant/learning-resources-dev-proxy-caddyfile-configmap.yaml
+      - path: /tenants-config/cluster/stone-prd-rh01/tenants/hcc-platex-services-tenant/learning-resources-test-app-caddyfile-configmap.yaml
+
+  # Add more repositories here following the same pattern
+  # example-app:
+  #   pipelinerun: example-app.yaml
+  #   configmaps:
+  #     - path: example-app/dev-proxy-caddyfile.yaml
+  #     - path: example-app/test-app-caddyfile.yaml
