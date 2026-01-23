@@ -31,7 +31,14 @@ The Tekton pipeline orchestrates:
   - Caddy ConfigMap for insights-chrome-dev Caddyfile configuration
   - Tekton Task definition for E2E testing
   - Tekton Pipeline definition
-- `repo-specific-pipelinerun.yaml`: PipelineRun instance with repository-specific parameters and custom proxy routes
+- `repos.yaml`: Central configuration file defining:
+  - List of supported frontend repositories
+  - ConfigMap paths for each repository in the external ConfigMap repository
+  - PipelineRun file mapping for each repository
+- `pipelineruns/`: Directory containing pre-generated PipelineRun YAML templates:
+  - `frontend-starter-app.yaml`: PipelineRun for frontend-starter-app repository
+  - `learning-resources.yaml`: PipelineRun for learning-resources repository
+  - `README.md`: Documentation for adding new repositories
 
 ### Cluster Setup Scripts (`cluster_setup/`)
 - `start.sh`: Initializes Minikube with podman driver (40GB disk, cri-o runtime)
@@ -43,7 +50,14 @@ The Tekton pipeline orchestrates:
 - `build_and_push.sh`: Script to build and push the Playwright image to Quay.io
 
 ### Execution Scripts
-- `run_pipeline.sh`: Validates environment variables, applies shared pipeline definition, and follows logs
+- `run_pipeline.sh`: Main execution script that:
+  - Takes a repository name as argument (e.g., `./run_pipeline.sh frontend-starter-app`)
+  - Parses `repos.yaml` using `yq` to extract repository configuration
+  - Validates required environment variables
+  - Clones/updates external ConfigMap repository to `.configmaps-cache/`
+  - Strips namespaces from ConfigMaps and applies them to current namespace
+  - Applies repository-specific PipelineRun with environment variable substitution
+  - Follows pipeline logs
 
 ### Helper Scripts (`helper_scripts/`)
 - `browse_locally.sh`: Helper script for local browsing (opens https://stage.foo.redhat.com:1337)
@@ -55,17 +69,30 @@ The Tekton pipeline orchestrates:
 - Podman (used as minikube driver)
 - kubectl
 - tkn (Tekton CLI)
+- yq (for YAML parsing in run_pipeline.sh - install with `brew install yq`)
 - envsubst (for environment variable substitution in pipeline runs)
 
 ## Getting Started
 
 1. Set required environment variables:
    ```bash
+   # ConfigMap repository (external repository containing Caddy config for all apps)
+   export CONFIGMAP_REPO="git@gitlab.example.com:org/configmaps.git"
+   export CONFIGMAP_BRANCH="main"  # Optional, defaults to main
+
+   # Test credentials and proxy configuration
    export E2E_USER="your-test-username"
    export E2E_PASSWORD="your-test-password"
    export E2E_PROXY_URL="your-proxy-url"
+   export HTTP_PROXY="your-http-proxy"
+   export HTTPS_PROXY="your-https-proxy"
    export STAGE_ACTUAL_HOSTNAME="actual-stage-hostname.example.com"
-   export HCC_ENV_URL="https://actual.stage.redhat.com"
+   export HCC_ENV_URL="https://your-environment-url"
+
+   # Repository-specific configuration
+   export SOURCE_ARTIFACT="quay.io/org/app:tag"
+   export BRANCH_NAME="main"  # Optional, defaults to main
+   export HCC_ENV="stage"  # Optional, defaults to stage
    ```
 
 2. Start Minikube:
@@ -83,15 +110,19 @@ The Tekton pipeline orchestrates:
    ./cluster_setup/image_load.sh
    ```
 
-5. Run the E2E pipeline:
+5. Run the E2E pipeline for a specific repository:
    ```bash
-   ./run_pipeline.sh
+   ./run_pipeline.sh frontend-starter-app
+   # or
+   ./run_pipeline.sh learning-resources
    ```
 
    This script will:
-   - Validate required environment variables (E2E_USER, E2E_PASSWORD, E2E_PROXY_URL, STAGE_ACTUAL_HOSTNAME)
-   - Clean up previous pipeline/task runs
-   - Apply the shared E2E pipeline definition (ConfigMap, Task, Pipeline)
+   - Parse `repos.yaml` to extract configuration for the specified repository
+   - Validate required environment variables
+   - Clone/update the external ConfigMap repository to `.configmaps-cache/`
+   - Apply ConfigMaps (with namespace stripped) to current namespace
+   - Apply the shared E2E pipeline definition (Task, Pipeline)
    - Apply the repository-specific PipelineRun with environment variable substitution
    - Follow the logs
 
@@ -109,7 +140,7 @@ The Tekton pipeline orchestrates:
 - `HCC_ENV_URL`: HCC environment URL (used for environment variable substitution in proxy configuration)
 - `proxy-routes`: Custom proxy routes configuration (Caddy directives format)
 - `e2e-tests-script`: Custom test execution script (optional override)
-- `PLAYWRIGHT_IMAGE`: Playwright container image (default: `mcr.microsoft.com/playwright:v1.50.0-noble`)
+- `PLAYWRIGHT_IMAGE`: Playwright container image (default: `mcr.microsoft.com/playwright:v1.58.0-noble`)
 - `CHROME_DEV_IMAGE`: Chrome dev container image (default: `quay.io/redhat-services-prod/hcc-platex-services-tenant/insights-chrome-dev:latest`)
 - `PROXY_IMAGE`: Frontend proxy container image (default: `quay.io/redhat-user-workloads/hcc-platex-services-tenant/frontend-development-proxy:latest`)
 - `APP_PORT`: Application port (default: `8000`)
@@ -184,7 +215,7 @@ minikube delete
 
 The Playwright step:
 - Runs as root user (UID 0)
-- Uses the image: `mcr.microsoft.com/playwright:v1.50.0-noble` (default)
+- Uses the image: `mcr.microsoft.com/playwright:v1.58.0-noble` (default)
   - Can be overridden via the `PLAYWRIGHT_IMAGE` parameter
   - A custom image with bind9 DNS utilities is available at `quay.io/btweed/playwright_e2e:latest`
   - Custom images can be built using `playwright_image/build_and_push.sh`
@@ -249,7 +280,7 @@ To avoid potential rate limiting issues when pulling container images, you can p
    ./cluster_setup/image_load.sh
    ```
 
-Note: You must be authenticated to Quay.io with podman for this script to work. The default Microsoft Playwright image (`mcr.microsoft.com/playwright:v1.50.0-noble`) will be pulled automatically and doesn't need pre-loading.
+Note: You must be authenticated to Quay.io with podman for this script to work. The default Microsoft Playwright image (`mcr.microsoft.com/playwright:v1.58.0-noble`) will be pulled automatically and doesn't need pre-loading.
 
 ### Building Custom Playwright Image
 
@@ -270,25 +301,55 @@ This will build the image from `playwright_image/Dockerfile` and push it to `qua
 
 ## Customizing for Different Repositories
 
-The pipeline is designed to be reusable across different repositories. To customize for a new repository:
+The pipeline is designed to be reusable across different repositories using a centralized configuration system.
 
-1. **Copy and edit `repo-specific-pipelinerun.yaml`**:
-   - Update `branch-name` and `repo-url` to point to your repository
-   - Update `SOURCE_ARTIFACT` to point to your application image
-   - Customize `proxy-routes` to match your application's routing needs (using Caddy directive format)
-   - Ensure environment variables are set: `E2E_USER`, `E2E_PASSWORD`, `E2E_PROXY_URL`, `STAGE_ACTUAL_HOSTNAME`, `HCC_ENV_URL`
+### Adding a New Repository
 
-2. **Optional: Override default images**:
-   - Override `PLAYWRIGHT_IMAGE`, `CHROME_DEV_IMAGE`, or `PROXY_IMAGE` parameters if using custom images
-   - Override `APP_PORT` if your application runs on a different port
+1. **Create ConfigMaps in the external repository**:
+   - Create Caddy ConfigMap files in the external ConfigMap repository (specified by `CONFIGMAP_REPO`)
+   - Typically two ConfigMaps per repository:
+     - `<repo-name>-dev-proxy-caddyfile`: Routes configuration for frontend-dev-proxy
+     - `<repo-name>-test-app-caddyfile`: Caddy configuration for the application under test
 
-3. **Optional: Override the test script**:
-   - Uncomment and customize the `e2e-tests-script` parameter to run custom test commands
-   - Default script runs `npm install` and `npx playwright test`
+2. **Create a PipelineRun YAML file**:
+   - Copy an existing file from `pipelineruns/` (e.g., `frontend-starter-app.yaml`)
+   - Save as `pipelineruns/<repo-name>.yaml`
+   - Update the following fields:
+     - `spec.params[].repo-url`: Git repository URL
+     - `spec.params[].PROXY_ROUTES_CONFIGMAP`: Name of dev-proxy ConfigMap
+     - `spec.params[].APP_CONFIG_CONFIGMAP`: Name of test-app ConfigMap
+     - `spec.taskRunSpecs[].podTemplate.volumes[]`: ConfigMap volume mounts
+   - Environment variables (`${BRANCH_NAME}`, `${SOURCE_ARTIFACT}`, etc.) will be substituted at runtime
 
-4. **Apply the pipeline**:
-   ```bash
-   ./run_pipeline.sh
+3. **Add entry to `repos.yaml`**:
+   ```yaml
+   repositories:
+     my-app:
+       pipelinerun: my-app.yaml
+       configmaps:
+         - path: path/to/my-app-dev-proxy-caddyfile.yaml
+         - path: path/to/my-app-test-app-caddyfile.yaml
    ```
 
-The `shared-e2e-pipeline.yaml` file remains unchanged and can be shared across all repositories.
+4. **Run the pipeline**:
+   ```bash
+   export CONFIGMAP_REPO="git@gitlab.example.com:org/configmaps.git"
+   export SOURCE_ARTIFACT="quay.io/org/my-app:tag"
+   export BRANCH_NAME="main"
+   # ... set other required environment variables
+
+   ./run_pipeline.sh my-app
+   ```
+
+### Architecture Notes
+
+- The `shared-e2e-pipeline.yaml` file remains unchanged and is shared across all repositories
+- Repository-specific configuration lives in:
+  - `repos.yaml`: Maps repository names to PipelineRun files and ConfigMap paths
+  - `pipelineruns/<repo>.yaml`: Pre-generated PipelineRun templates with environment variable placeholders
+  - External ConfigMap repository: Contains all Caddy configuration files
+- The `run_pipeline.sh` script:
+  - Uses `yq` to parse `repos.yaml`
+  - Clones the external ConfigMap repository to `.configmaps-cache/`
+  - Strips namespace metadata from ConfigMaps before applying to local cluster
+  - Performs environment variable substitution on PipelineRun templates with `envsubst`
