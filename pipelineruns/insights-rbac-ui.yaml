@@ -1,0 +1,100 @@
+---
+# PipelineRun configuration for insights-rbac-ui repository
+# Environment variables will be substituted at runtime using envsubst
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: e2e-pipeline-run
+spec:
+  params:
+    # Git repository configuration
+    - name: branch-name
+      value: ${BRANCH_NAME}
+    - name: repo-url
+      value: https://github.com/RedHatInsights/insights-rbac-ui.git
+
+    # Application artifact to test
+    - name: SOURCE_ARTIFACT
+      value: ${SOURCE_ARTIFACT}
+
+    # Test credentials (substituted from environment variables)
+    - name: E2E_USER
+      value: "${E2E_USER}"
+    - name: E2E_PASSWORD
+      value: "${E2E_PASSWORD}"
+    - name: e2e_proxy
+      value: "${E2E_PROXY_URL}"
+    - name: STAGE_ACTUAL_HOSTNAME
+      value: "${STAGE_ACTUAL_HOSTNAME}"
+    - name: HCC_ENV_URL
+      value: "${HCC_ENV_URL}"
+    - name: HCC_ENV
+      value: "${HCC_ENV}"
+
+    # ConfigMap names for Caddy configuration
+    - name: PROXY_ROUTES_CONFIGMAP
+      value: "insights-rbac-ui-dev-proxy-caddyfile"
+    - name: APP_CONFIG_CONFIGMAP
+      value: "insights-rbac-ui-app-caddy-config"
+
+    # Custom test script with additional environment variables
+    - name: e2e-tests-script
+      value: |
+        set -x
+
+        # Add your custom environment variables here
+        export YOUR_CUSTOM_VAR="value"
+        export ANOTHER_VAR="another_value"
+
+        echo "HTTP_PROXY is ${HTTP_PROXY}"
+        echo "HTTPS_PROXY is ${HTTPS_PROXY}"
+        getent hosts stage.foo.redhat.com
+
+        set -e
+        # Wait for stage.foo.redhat.com to be responsive
+        timeout 120s bash -c 'until curl -k https://stage.foo.redhat.com:1337 > /dev/null 2>&1; do
+        echo "Waiting for dev server to be ready"
+        sleep 5
+        done'
+        echo "Dev server ready!"
+
+        sleep 2000
+        cd /workspace/output
+        npm install @playwright/test
+        npx playwright test
+
+  # Workspace configuration
+  workspaces:
+    - name: shared-code-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+
+  # Reference to the shared pipeline definition
+  pipelineRef:
+    name: e2e-pipeline
+
+  # Task-specific runtime configuration
+  taskRunSpecs:
+    - pipelineTaskName: e2e-test-run
+      podTemplate:
+        # Override /etc/hosts to redirect stage.foo.redhat.com to localhost
+        hostAliases:
+          - ip: "::1"
+            hostnames:
+              - "stage.foo.redhat.com"
+          - ip: "127.0.0.1"
+            hostnames:
+              - "stage.foo.redhat.com"
+        # Override volumes to mount ConfigMaps
+        volumes:
+          - name: proxy-config
+            configMap:
+              name: insights-rbac-ui-dev-proxy-caddyfile
+          - name: app-config
+            configMap:
+              name: insights-rbac-ui-app-caddy-config
