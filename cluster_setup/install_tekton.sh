@@ -17,7 +17,10 @@ echo "Tekton installation complete and ready!"
 
 # Install the git-clone task for use in the pipeline
 echo "Installing git-clone task from Tekton Hub..."
-tkn hub install task git-clone
+if ! tkn hub install task git-clone; then
+    echo "Warning: Tekton Hub installation failed. Falling back to GitHub repository..."
+    kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/git-clone/0.9/git-clone.yaml
+fi
 
 # Verify the git-clone task was installed successfully
 echo "Verifying git-clone task installation..."

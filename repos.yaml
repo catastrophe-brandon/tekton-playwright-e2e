@@ -23,6 +23,12 @@ repositories:
       - path: tenants-config/cluster/stone-prd-rh01/tenants/hcc-platex-services-tenant/learning-resources-dev-proxy-caddyfile-configmap.yaml
       - path: /tenants-config/cluster/stone-prd-rh01/tenants/hcc-platex-services-tenant/learning-resources-test-app-caddyfile-configmap.yaml
 
+  insights-rbac-ui:
+    pipelinerun: insights-rbac-ui.yaml
+    configmaps:
+      - path: tenants-config/cluster/stone-prd-rh01/tenants/rh-platform-experien-tenant/insights-rbac-ui-dev-proxy-caddyfile.yaml
+      - path: tenants-config/cluster/stone-prd-rh01/tenants/rh-platform-experien-tenant/insights-rbac-ui-app-caddy-config.yaml
+
   # Add more repositories here following the same pattern
   # example-app:
   #   pipelinerun: example-app.yaml
